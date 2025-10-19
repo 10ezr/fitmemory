@@ -21,8 +21,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import simpleStreakTracker from "./services/simpleStreakTracker";
-import simpleRealTimeSync from "./services/simpleRealTimeSync";
 
 export default function Home() {
   const [messages, setMessages] = useState([]);
@@ -45,10 +43,6 @@ export default function Home() {
   useEffect(() => {
     loadInitialData();
     setupEventListeners();
-
-    // Initialize simple services
-    simpleStreakTracker.initialize();
-    simpleRealTimeSync.initialize();
 
     return () => {
       cleanup();
@@ -209,14 +203,8 @@ export default function Home() {
         console.log('🔥 Streak update received:', data.streakUpdate);
         notificationService.streakMilestone(data.streakUpdate.currentStreak);
 
-        // Notify simple streak tracker
-        simpleStreakTracker.handleStreakUpdate(data.streakUpdate);
-
         // Force immediate stats refresh
         await refreshStats();
-        
-        // Also notify real-time sync
-        simpleRealTimeSync.broadcastDataChange('streak', data.streakUpdate, 'conversation');
       }
 
       // Check for streak status (missed workouts, resets, etc.)
@@ -226,9 +214,6 @@ export default function Home() {
             body: `Your streak was reset due to ${data.streakStatus.daysMissed} missed workouts. Time to start fresh! 💪`,
             icon: "/icon-192x192.png",
           });
-
-          // Notify simple streak tracker
-          simpleStreakTracker.handleStreakReset(data.streakStatus);
         } else if (data.streakStatus.streakMaintained) {
           // Show warning if approaching reset
           if (data.streakStatus.missedWorkouts >= 2) {
