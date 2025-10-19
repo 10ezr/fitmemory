@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import StreakDisplay from "./StreakDisplay";
-import simpleRealTimeSync from "../services/simpleRealTimeSync";
+import realTimeSync from "../services/realTimeSync";
 
 export default function StatsSidebar({
   stats,
@@ -16,7 +16,7 @@ export default function StatsSidebar({
 
   useEffect(() => {
     // Subscribe to real-time updates
-    const unsubscribeStats = simpleRealTimeSync.subscribe(
+    const unsubscribeStats = realTimeSync.subscribe(
       "stats",
       (data) => {
         setRealTimeStats(data);
@@ -24,7 +24,7 @@ export default function StatsSidebar({
       "StatsSidebar"
     );
 
-    const unsubscribeStreak = simpleRealTimeSync.subscribe(
+    const unsubscribeStreak = realTimeSync.subscribe(
       "streak",
       (data) => {
         setRealTimeStats((prev) => ({ ...prev, ...data }));
