@@ -14,11 +14,8 @@
     "test:streak:fresh": "node scripts/test-streak-fresh.js",
     "test:ai": "node scripts/test-ai-response.js",
     "test:complete": "node scripts/test-complete.js",
-    "test:debug": "node scripts/test-converse-debug.js",
-    "test:simple": "node scripts/test-simple-api.js",
     "test:db": "node scripts/test-db-connection.js",
-    "test:all": "node scripts/test-all.js",
-    "debug:streak": "node scripts/debug-streak.js"
+    "test:all": "node scripts/test-all.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.2.1",

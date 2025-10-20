@@ -31,3 +31,7 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Debug and test artifacts
+debug-results.json
+*.debug.json
+test-output/
