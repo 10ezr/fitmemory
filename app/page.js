@@ -9,6 +9,7 @@ import {
 import ChatMessage from "@/components/ChatMessage";
 import QuickActions from "@/components/QuickActions";
 import StatsSidebar from "@/components/StatsSidebar";
+import TomorrowSidebar from "@/components/TomorrowSidebar";
 import AdminPanel from "@/components/AdminPanel";
 import WorkoutTimer from "@/components/WorkoutTimer";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
@@ -357,37 +358,6 @@ export default function Home() {
 
       {/* Chat column */}
       <div className="flex-1 flex h-full flex-col overflow-hidden">
-        {/* Header */}
-        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
-              {/* Current Date */}
-              <div className="text-sm font-medium text-foreground">
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Streak Display */}
-              {stats?.dailyStreak > 0 && (
-                <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200 dark:border-orange-800">
-                  <span className="text-sm ">🔥</span>
-                  <span className="text-sm font-bold text-orange-700 dark:text-orange-300">
-                    {stats.dailyStreak}
-                  </span>
-                  <span className="text-xs text-orange-600 dark:text-orange-400">
-                    day{stats.dailyStreak !== 1 ? "s" : ""}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
           <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
@@ -526,7 +496,8 @@ export default function Home() {
           </div>
         </div>
       </div>
-
+      {/* NEW: Right sidebar */}
+      <TomorrowSidebar />
       {/* Workout Timer Modal */}
       <WorkoutTimer
         workoutPlan={todaysWorkout}
