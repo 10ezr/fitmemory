@@ -6,12 +6,12 @@ import {
   ChartBarIcon,
   BellIcon,
 } from "@heroicons/react/24/solid";
-import ChatMessage from "./components/ChatMessage";
-import QuickActions from "./components/QuickActions";
-import StatsSidebar from "./components/StatsSidebar";
-import AdminPanel from "./components/AdminPanel";
-import WorkoutTimer from "./components/WorkoutTimer";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import ChatMessage from "../components/ChatMessage";
+import QuickActions from "../components/QuickActions";
+import StatsSidebar from "../components/StatsSidebar";
+import AdminPanel from "../components/AdminPanel";
+import WorkoutTimer from "../components/WorkoutTimer";
+import AnalyticsDashboard from "../components/AnalyticsDashboard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Settings2Icon } from "lucide-react";
 
 export default function Home() {
   const [messages, setMessages] = useState([]);
@@ -200,7 +201,7 @@ export default function Home() {
 
       // Check for streak updates
       if (data.streakUpdate && notificationService) {
-        console.log('🔥 Streak update received:', data.streakUpdate);
+        console.log("🔥 Streak update received:", data.streakUpdate);
         notificationService.streakMilestone(data.streakUpdate.currentStreak);
 
         // Force immediate stats refresh
@@ -327,7 +328,7 @@ export default function Home() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <span className="text-lg">⚙️</span>
+                  <Settings2Icon />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-72 p-0">
@@ -374,7 +375,7 @@ export default function Home() {
               {/* Streak Display */}
               {stats?.dailyStreak > 0 && (
                 <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200 dark:border-orange-800">
-                  <span className="text-sm">🔥</span>
+                  <span className="text-sm ">🔥</span>
                   <span className="text-sm font-bold text-orange-700 dark:text-orange-300">
                     {stats.dailyStreak}
                   </span>
@@ -450,7 +451,7 @@ export default function Home() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="w-full max-w-4xl mx-auto p-4">
             {/* Quick Actions */}
             {messages.length > 0 && (
@@ -459,7 +460,7 @@ export default function Home() {
                   {[
                     { label: "Start today's workout", emoji: "▶️" },
                     { label: "Check my progress", emoji: "📈" },
-                    { label: "Create new plan", emoji: "📋" },
+                    { label: "Workout done", emoji: "📋" },
                     { label: "Get motivated", emoji: "🔥" },
                   ].map((action, i) => (
                     <button

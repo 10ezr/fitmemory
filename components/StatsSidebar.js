@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import StreakDisplay from "./StreakDisplay";
-import realTimeSync from "../services/realTimeSync";
+import realTimeSync from "../app/services/realTimeSync";
 
 export default function StatsSidebar({
   stats,
