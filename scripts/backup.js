@@ -1,31 +1,45 @@
 #!/usr/bin/env node
 
-require('dotenv').config();
-const fs = require('fs').promises;
-const path = require('path');
-const DatabaseService = require('../services/database');
-const { User, Workout, Message, Memory, GeminiResponse, AppConfig } = require('../models');
+require("dotenv").config();
+const fs = require("fs").promises;
+const path = require("path");
+const DatabaseService = require("@/services/database");
+const {
+  User,
+  Workout,
+  Message,
+  Memory,
+  GeminiResponse,
+  AppConfig,
+} = require("@/models");
 
 async function createBackup() {
   try {
-    console.log('🔄 Starting backup process...');
-    
+    console.log("🔄 Starting backup process...");
+
     // Connect to database
     await DatabaseService.connect();
-    console.log('✅ Connected to database');
+    console.log("✅ Connected to database");
 
     // Fetch all data
-    console.log('📊 Fetching data...');
-    const [users, workouts, messages, memories, geminiResponses, appConfig] = await Promise.all([
-      User.find({}).lean(),
-      Workout.find({}).lean(),
-      Message.find({}).lean(),
-      Memory.find({}).lean(),
-      GeminiResponse.find({}).lean(),
-      AppConfig.find({}).lean()
-    ]);
+    console.log("📊 Fetching data...");
+    const [users, workouts, messages, memories, geminiResponses, appConfig] =
+      await Promise.all([
+        User.find({}).lean(),
+        Workout.find({}).lean(),
+        Message.find({}).lean(),
+        Memory.find({}).lean(),
+        GeminiResponse.find({}).lean(),
+        AppConfig.find({}).lean(),
+      ]);
 
-    const totalRecords = users.length + workouts.length + messages.length + memories.length + geminiResponses.length + appConfig.length;
+    const totalRecords =
+      users.length +
+      workouts.length +
+      messages.length +
+      memories.length +
+      geminiResponses.length +
+      appConfig.length;
     console.log(`📋 Found ${totalRecords} total records`);
     console.log(`   - Users: ${users.length}`);
     console.log(`   - Workouts: ${workouts.length}`);
@@ -38,38 +52,41 @@ async function createBackup() {
     const backupData = {
       meta: {
         backedUpAt: new Date().toISOString(),
-        version: '1.0.0',
+        version: "1.0.0",
         totalRecords,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || "development",
       },
       users,
       workouts,
       messages,
       memories,
       geminiResponses,
-      appConfig
+      appConfig,
     };
 
     // Create backups directory
-    const backupDir = path.join(__dirname, '../backups');
+    const backupDir = path.join(__dirname, "@/backups");
     try {
       await fs.access(backupDir);
     } catch {
       await fs.mkdir(backupDir, { recursive: true });
-      console.log('📁 Created backups directory');
+      console.log("📁 Created backups directory");
     }
 
     // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupPath = path.join(backupDir, `fitmemory-backup-${timestamp}.json`);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupPath = path.join(
+      backupDir,
+      `fitmemory-backup-${timestamp}.json`
+    );
 
     // Write backup file
-    console.log('💾 Writing backup file...');
+    console.log("💾 Writing backup file...");
     await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2));
 
     // Update last backup time in app config
     await AppConfig.findByIdAndUpdate(
-      'singleton',
+      "singleton",
       { $set: { lastBackup: new Date() } },
       { upsert: true }
     );
@@ -78,7 +95,7 @@ async function createBackup() {
     const stats = await fs.stat(backupPath);
     const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-    console.log('✅ Backup completed successfully!');
+    console.log("✅ Backup completed successfully!");
     console.log(`📁 File: ${backupPath}`);
     console.log(`📏 Size: ${fileSizeMB} MB`);
     console.log(`📊 Records: ${totalRecords}`);
@@ -86,13 +103,12 @@ async function createBackup() {
 
     // Clean up old backups (keep last 10)
     await cleanupOldBackups(backupDir, 10);
-
   } catch (error) {
-    console.error('❌ Backup failed:', error);
+    console.error("❌ Backup failed:", error);
     process.exit(1);
   } finally {
     await DatabaseService.disconnect();
-    console.log('👋 Disconnected from database');
+    console.log("👋 Disconnected from database");
   }
 }
 
@@ -100,10 +116,12 @@ async function cleanupOldBackups(backupDir, keepCount = 10) {
   try {
     const files = await fs.readdir(backupDir);
     const backupFiles = files
-      .filter(file => file.startsWith('fitmemory-backup-') && file.endsWith('.json'))
-      .map(file => ({
+      .filter(
+        (file) => file.startsWith("fitmemory-backup-") && file.endsWith(".json")
+      )
+      .map((file) => ({
         name: file,
-        path: path.join(backupDir, file)
+        path: path.join(backupDir, file),
       }));
 
     if (backupFiles.length <= keepCount) {
@@ -115,15 +133,17 @@ async function cleanupOldBackups(backupDir, keepCount = 10) {
     const filesToDelete = backupFiles.slice(keepCount);
 
     if (filesToDelete.length > 0) {
-      console.log(`🗑️  Cleaning up ${filesToDelete.length} old backup files...`);
-      
+      console.log(
+        `🗑️  Cleaning up ${filesToDelete.length} old backup files...`
+      );
+
       for (const file of filesToDelete) {
         await fs.unlink(file.path);
         console.log(`   Deleted: ${file.name}`);
       }
     }
   } catch (error) {
-    console.warn('⚠️  Warning: Failed to cleanup old backups:', error.message);
+    console.warn("⚠️  Warning: Failed to cleanup old backups:", error.message);
   }
 }
 
@@ -131,7 +151,7 @@ async function cleanupOldBackups(backupDir, keepCount = 10) {
 if (require.main === module) {
   // Parse command line arguments
   const args = process.argv.slice(2);
-  const showHelp = args.includes('--help') || args.includes('-h');
+  const showHelp = args.includes("--help") || args.includes("-h");
 
   if (showHelp) {
     console.log(`

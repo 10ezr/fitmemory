@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDatabase from "../../../lib/database";
+import connectDatabase from "@/lib/database";
 import {
   User,
   Workout,
@@ -9,7 +9,7 @@ import {
   GeminiResponse,
   Streak,
   AppConfig,
-} from "../../../models";
+} from "@/models";
 
 export async function POST() {
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import connectDatabase from "../../../lib/database";
-import AnalyticsService from "../../../services/analyticsService";
+import connectDatabase from "@/lib/database";
+import AnalyticsService from "@/services/analyticsService";
 
 export async function GET(request) {
   try {

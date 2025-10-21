@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GeminiResponse } from "../models/index.js";
+import { GeminiResponse } from "@/models/index.js";
 
 class GeminiService {
   constructor() {

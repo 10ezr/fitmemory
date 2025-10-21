@@ -6,12 +6,12 @@ import {
   ChartBarIcon,
   BellIcon,
 } from "@heroicons/react/24/solid";
-import ChatMessage from "../components/ChatMessage";
-import QuickActions from "../components/QuickActions";
-import StatsSidebar from "../components/StatsSidebar";
-import AdminPanel from "../components/AdminPanel";
-import WorkoutTimer from "../components/WorkoutTimer";
-import AnalyticsDashboard from "../components/AnalyticsDashboard";
+import ChatMessage from "@/components/ChatMessage";
+import QuickActions from "@/components/QuickActions";
+import StatsSidebar from "@/components/StatsSidebar";
+import AdminPanel from "@/components/AdminPanel";
+import WorkoutTimer from "@/components/WorkoutTimer";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";

@@ -25,7 +25,7 @@ async function testDatabaseConnection() {
     console.log("✅ Database connected successfully");
 
     // Test a simple query
-    const { Streak } = require("../models/index.js");
+    const { Streak } = require("@/models/index.js");
     const streak = await Streak.findById("local");
     console.log("✅ Streak query successful:", {
       found: !!streak,

@@ -3,7 +3,7 @@
  * Handles real-time streak updates, downgrades, and analytics integration
  */
 
-import { Streak } from "../../models/index.js";
+import { Streak } from "@/@/models/index.js";
 
 class StreakTrackerService {
   constructor() {

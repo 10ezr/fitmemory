@@ -5,7 +5,7 @@
 
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { Streak } from '../models/index.js';
+import { Streak } from '@/models/index.js';
 
 class StreakDebugger {
   constructor() {

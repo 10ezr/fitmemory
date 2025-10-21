@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import connectDatabase from "../../../lib/database";
-import { User, Message, Streak } from "../../../models";
-import WorkoutParser from "../../../services/workoutParser";
-import GeminiService from "../../../services/geminiService";
-import MemoryService from "../../../services/memoryService";
+import connectDatabase from "@/lib/database";
+import { User, Message, Streak } from "@/models";
+import WorkoutParser from "@/services/workoutParser";
+import GeminiService from "@/services/geminiService";
+import MemoryService from "@/services/memoryService";
 
 // Function to increment streak when workout is completed
 async function incrementStreak() {
@@ -183,12 +183,12 @@ export async function POST(request) {
       /keep in mind:?/i,
       /note that:?/i,
     ];
-    
+
     const isRememberCommand = rememberPatterns.some((pattern) =>
       pattern.test(message)
     );
     let rememberResponse = null;
-    
+
     if (isRememberCommand) {
       rememberResponse = await memoryService.processRememberCommand(message);
     }
@@ -249,14 +249,14 @@ export async function POST(request) {
     };
 
     let reply, actions;
-    
+
     // If it's a remember command, use that response, otherwise generate AI response
     if (rememberResponse && rememberResponse.success) {
       reply = rememberResponse.response;
       actions = [
         {
           action: "memory_add",
-        type: rememberResponse.memory.type,
+          type: rememberResponse.memory.type,
           content: rememberResponse.memory.content,
         },
       ];

@@ -1,4 +1,4 @@
-import { Workout, AppConfig, Streak } from "../models/index.js";
+import { Workout, AppConfig, Streak } from "@/models/index.js";
 
 class AnalyticsService {
   constructor() {
