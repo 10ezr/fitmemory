@@ -30,8 +30,8 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+scrollbar-width: none
   }
-  
   body {
     @apply antialiased;
   }

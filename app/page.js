@@ -357,9 +357,9 @@ export default function Home() {
       </aside>
 
       {/* Chat column */}
-      <div className="flex-1 flex h-full flex-col overflow-hidden">
+      <div className="flex-1 flex h-full flex-col overflow-hidden ">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
             {messages.length === 0 && (
               <div className="text-center py-12">

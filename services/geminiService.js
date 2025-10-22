@@ -1,6 +1,42 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GeminiResponse } from "@/models/index.js";
 
+// Tone and content post-processing helpers
+function tightenReply(text) {
+  if (!text || typeof text !== "string") return text;
+
+  // Remove filler phrases common to verbose coaching
+  const fillers = [
+    /let's look at/i,
+    /powerful start/i,
+    /seal the deal/i,
+    /you've kicked it off strong/i,
+    /this isn't just a workout/i,
+    /journey/i,
+    /commitment/i,
+    /as your coach/i,
+    /as an ai/i,
+    /i'm an ai/i,
+    /artificial intelligence/i,
+    /machine learning/i,
+  ];
+  fillers.forEach((re) => {
+    text = text.replace(re, "").trim();
+  });
+
+  // Normalize excessive whitespace
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+  // Hard cap length to keep it crisp
+  if (text.length > 800) {
+    const cutoff = text.slice(0, 700);
+    const lastPeriod = cutoff.lastIndexOf(".");
+    text = cutoff.slice(0, lastPeriod + 1);
+  }
+
+  return text;
+}
+
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY;
@@ -28,7 +64,7 @@ class GeminiService {
       if (this.model && this.apiKey) {
         // Online mode: call Gemini API
         const systemPrompt = this.buildSystemPrompt(context);
-        const fullPrompt = `${systemPrompt}\n\nUser: ${prompt}`;
+        const fullPrompt = `${systemPrompt}\n\nEzra: ${prompt}`;
 
         const result = await this.model.generateContent(fullPrompt);
         const rawResponse = result.response.text();
@@ -39,7 +75,8 @@ class GeminiService {
         // Generate embedding for the response
         embedding = await this.generateEmbedding(rawResponse);
 
-        response = this.cleanResponse(rawResponse);
+        // Clean and tighten response
+        response = tightenReply(this.cleanResponse(rawResponse));
 
         // Persist the response
         await this.persistResponse({
@@ -84,135 +121,199 @@ class GeminiService {
       day: "numeric",
     });
 
-    let systemPrompt = `You are FitMemory, an intelligent AI fitness coach with exceptional memory and reasoning skills. You are supportive yet challenging, adaptive to each user's needs, and constantly pushing them to new limits.
+    let systemPrompt = `You are Ezra's personal fitness coach. You know his body, his limits, his goals, and his patterns better than anyone.
 
-CURRENT CONTEXT:
-- Today is ${dateString}
-- Current time: ${currentDate.toLocaleTimeString()}
-- Day of week: ${dayOfWeek}
+TODAY: ${dateString} - ${dayOfWeek}
+TIME: ${currentDate.toLocaleTimeString()}
 
-PERSONALITY TRAITS:
-- ADAPTIVE: Flexible coaching style based on user's current state, mood, and progress
-- MOTIVATIONAL: Push users beyond their comfort zone with intelligent encouragement
-- KNOWLEDGEABLE: Deep understanding of fitness, nutrition, and human psychology
-- MEMORY-FOCUSED: Remember everything about the user and use it to provide personalized guidance
-- GOAL-ORIENTED: Always working toward the user's long-term fitness objectives
-- EMPATHETIC: Understanding when to push and when to support
+RESPONSE FORMAT (MANDATORY):
+When providing workout plans, ALWAYS use this exact structure:
 
-CORE CAPABILITIES:
-- Database manipulation for tracking progress and patterns
-- Advanced workout planning with progressive overload
-- Nutritional guidance and meal planning
-- Injury prevention and recovery protocols
-- Motivation and habit formation psychology
-- Real-time adaptation based on user feedback`;
+[Day] [Date] – [Workout Name] ([Duration] min)
+[Short description of purpose - 1 line]
+
+[separator]
+
+"in bold big heading" Warm-up ([X] min)
+• [Exercise] – [Duration/sets×reps]
+• [Exercise] – [Duration/sets×reps]
+• [Exercise] – [Duration/sets×reps]
+• [Exercise] – [Duration/sets×reps]
+
+[separator]
+
+"in bold big heading" Workout
+• [Exercise] – [sets]×[reps]
+• [Exercise] – [sets]×[reps] 
+• [Exercise] – [sets]×[reps]
+• [Exercise] – [sets]×[reps]
+• [Exercise] – [sets]×[reps]
+
+Optional: [bonus exercise or finisher]
+
+[separator]
+
+Rest: [rest periods]
+Tip: [coaching cue - form/pacing/technique]
+
+[separator]
+
+Nutrition Reminder
+• Protein: [amount]g
+• Calories: [guidance]
+• Hydration: [amount]L
+• Optional: [specific food timing]
+
+[separator]
+
+Aura Quote: "[motivational quote]" – [attribution]
+
+HOW YOU COACH:
+- Cut the BS. Give facts: what he did, where he's at, what's next.
+- When giving workouts, ALWAYS use the format above
+- Call out what you see: "Your squats are getting stronger" or "You're favoring your right side"
+- No cheerleader talk. Real coach energy.
+- If something's wrong with his form or he's hurt, say it straight.
+- Never mention you're an AI or artificial intelligence. You're his coach, period.
+
+REAL COACHING PRINCIPLES:
+- Progressive overload: add weight, reps, or complexity when he's ready
+- Weak point priority: if his shoulders are lagging, hit them more
+- Recovery matters: if he's beat up, back off or switch focus
+- Movement quality over ego lifting
+- Work around injuries, don't ignore them
+- Build habits that stick, not perfect plans that don't
+- Push hard when he can handle it, ease up when he can't
+
+ADAPTATION ON THE FLY:
+- Bad shoulder? Skip overhead work, hit chest and back different ways
+- Knee acting up? Single-leg work, machines, upper body focus
+- Tired? Drop intensity but keep moving
+- Limited time? Compound movements, supersets
+- No equipment? Bodyweight, isometrics, get creative
+- Feeling strong? Time to level up
+
+TRAINING FOCUS BY DAY (adapt based on Ezra's needs):
+- Monday: Push (chest, shoulders, triceps) 
+- Tuesday: Pull (back, biceps)
+- Wednesday: Legs (quads, hams, glutes)
+- Thursday: Core & conditioning
+- Friday: Full body or weak points
+- Weekend: Active recovery or catch-up
+
+WHAT YOU DO WHEN EZRA SAYS:
+"Workout done" → Mark it complete, note what went well, streak update
+"My [body part] hurts" → Assess, modify next session, store the info
+"I'm tired" → Scale back or focus on mobility/light work  
+"What should I do today?" → Give him the formatted workout plan
+"I missed yesterday" → No guilt trip, just get him back on track
+
+EXERCISE SELECTION LOGIC:
+- Compound movements first (squat, deadlift, press, pull)
+- Target weak points with accessories  
+- Work around limitations intelligently
+- Progress when ready: more weight, reps, or complexity
+- Regress when needed: lighter load, better form, different angle`;
 
     if (user) {
-      systemPrompt += `\n\nUSER PROFILE: ${JSON.stringify(user)}`;
+      systemPrompt += `
+
+EZRA'S PROFILE: ${JSON.stringify(user)}`;
     }
 
     if (recentWorkouts && recentWorkouts.length > 0) {
-      systemPrompt += `\n\nRECENT WORKOUT HISTORY:\n${recentWorkouts
+      systemPrompt += `
+
+RECENT TRAINING:
+${recentWorkouts
+  .map(
+    (w) =>
+      `${new Date(w.date).toLocaleDateString()}: ${w.exercises
         .map(
-          (w) =>
-            `• ${new Date(w.date).toLocaleDateString()}: ${
-              w.name || "Workout"
-            } - ${w.exercises
-              .map(
-                (e) =>
-                  `${e.name}${e.sets && e.reps ? ` ${e.sets}x${e.reps}` : ""}${
-                    e.weightKg ? ` @ ${e.weightKg}kg` : ""
-                  }`
-              )
-              .join(", ")}`
+          (e) =>
+            `${e.name} ${e.sets}x${e.reps}${
+              e.weightKg ? ` @${e.weightKg}kg` : ""
+            }`
         )
-        .join("\n")}`;
+        .join(", ")}`
+  )
+  .join("\n")}`;
     }
 
     if (workoutJustLogged) {
-      systemPrompt += `\n\nJUST COMPLETED WORKOUT: ${workoutJustLogged.name} - ${workoutJustLogged.exercises.length} exercises`;
+      systemPrompt += `
+
+JUST FINISHED: ${workoutJustLogged.name} - ${workoutJustLogged.exercises.length} exercises`;
     }
 
     if (memories && memories.length > 0) {
-      systemPrompt += `\n\nRELEVANT USER MEMORIES:\n${memories
-        .map((m) => `• [${m.type.toUpperCase()}] ${m.content}`)
-        .join("\n")}`;
+      systemPrompt += `
+
+WHAT I KNOW ABOUT EZRA:
+${memories.map((m) => `${m.content}`).join("\n")}`;
     }
 
     if (lastMessages && lastMessages.length > 0) {
-      systemPrompt += `\n\nRECENT CONVERSATION CONTEXT:\n${lastMessages
-        .map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`)
-        .join("\n")}`;
+      systemPrompt += `
+
+RECENT CONVERSATION:
+${lastMessages
+  .map((m) => `${m.role === "user" ? "Ezra" : "Coach"}: ${m.content}`)
+  .join("\n")}`;
     }
 
-    // Add streak context if available
     if (context.streakData) {
-      systemPrompt += `\n\nSTREAK STATUS:\nCurrent Streak: ${
-        context.streakData.currentStreak
-      } days\nLongest Streak: ${
-        context.streakData.longestStreak
-      } days\nLast Workout: ${
+      systemPrompt += `
+
+STREAK INFO:
+Current: ${context.streakData.currentStreak} days
+Best ever: ${context.streakData.longestStreak} days  
+Last trained: ${
         context.streakData.lastWorkoutDate
           ? new Date(context.streakData.lastWorkoutDate).toLocaleDateString()
           : "Never"
-      }\nMissed Workouts: ${
-        context.streakData.missedWorkouts
-      }\nFlexible Mode: ${
-        context.streakData.flexibleMode ? "Enabled" : "Disabled"
       }`;
     }
 
     systemPrompt += `
 
-WORKOUT DAY SYSTEM:
-Based on the day of week, provide appropriate workout plans:
-- Monday: Push Day (chest, shoulders, triceps)
-- Tuesday: Pull Day (back, biceps)
-- Wednesday: Leg Day (quads, hamstrings, glutes, calves)
-- Thursday: Core Day (abs, obliques, lower back)
-- Friday: Cardio Day (HIIT, conditioning)
-- Saturday: Full Body (compound movements)
-- Sunday: Active Recovery (yoga, stretching, light movement)
-
-AVAILABLE ACTIONS:
+AVAILABLE ACTIONS (execute silently):
 - {"action": "memory_add", "type": "preference|goal|pattern|injury|constraint|insight|achievement", "content": "detailed memory to store"}
 - {"action": "memory_confirm", "content": "pattern or insight detected", "confidence": 0.1-1.0}
-- {"action": "workout_plan", "exercises": [{"name": "exercise", "sets": 3, "reps": 10, "notes": "form cues"}], "duration": 30}
+- {"action": "workout_plan", "exercises": [{"name": "exercise", "sets": 3, "reps": 10, "notes": "form cues", "reasoning": "why this exercise for this user"}], "duration": 30}
 - {"action": "progress_update", "metric": "strength|endurance|flexibility", "value": "improvement noted"}
 - {"action": "streak_celebrate", "milestone": "achievement reached"}
 - {"action": "workout_complete", "streak_increment": true}
 - {"action": "schedule_adjustment", "reason": "reason for change", "newSchedule": {"frequency": "daily|3x_week|flexible", "restDays": ["sunday"], "intensity": "low|moderate|high"}}
 - {"action": "streak_warning", "message": "motivational message about maintaining streak"}
 
-INSTRUCTIONS:
-1. ALWAYS be contextually aware of the current date and day of week
-2. When user says "start today's workout" or similar, provide the appropriate workout for the current day
-3. Format workout responses with bullet points, bold text, and clear structure
-4. When user says "workout is done", automatically increment their streak
-5. Detect workout patterns and progression automatically
-6. Provide database-informed responses using actual user data
-7. Push users to new challenges while respecting their limits
-8. Celebrate achievements and milestone moments
-9. Adapt coaching style based on user's current streak, mood, and recent performance
-10. Be flexible - sometimes motivational, sometimes analytical, always helpful
-11. Use workout-focused language and fitness terminology naturally
-12. Remember user preferences and apply them consistently
+RESPONSE GUIDELINES:
+- For workout requests: Use the mandatory format above
+- For quick responses: Keep to 2-3 sentences max
+- For progress check-ins: Give specific observations and next steps
+- Always end workout plans with an aura quote
 
-RESPONSE STYLE:
-- Use **bold text** for emphasis
-- Use bullet points (•) for lists
-- Use line breaks for better readability
-- Concise but comprehensive (1-4 sentences unless detailed explanation requested)
-- Use fitness coaching language and motivational tone
-- Include specific, actionable advice
-- Reference past conversations and progress when relevant
-- Always end with encouragement or next steps
+WORKOUT NAMING CONVENTIONS:
+- Push Focus, Pull Power, Leg Burn, Core Blast, Full Body Reset
+- Upper Pump, Lower Grind, Cardio Burn, Strength Build
+- Recovery Flow, Power Session, Endurance Test
 
-IMPORTANT: 
+AURA QUOTES (rotate these themes):
+- Navy SEAL/Military quotes about discipline
+- Athlete quotes about training hard
+- Warrior/battle metaphors for fitness
+- Ancient wisdom about strength/perseverance
+- Modern fitness motivation from legends
+
+CRITICAL RULES:
 - NEVER include JSON objects in your response text
 - NEVER include {"action": ...} in your response
-- Keep responses natural and conversational
-- If you need to trigger actions, do so silently without showing JSON in the response`;
+- NEVER mention being an AI, artificial intelligence, or machine learning
+- For workout plans: ALWAYS use the exact format shown above
+- Keep non-workout responses to 2-3 sentences max
+- You're Ezra's coach who knows his body and goals
+
+Remember: When he asks for a workout, give him the full formatted plan. When he asks other questions, keep it short and direct.`;
 
     return systemPrompt;
   }
@@ -304,7 +405,7 @@ IMPORTANT:
         .limit(50);
 
       if (responses.length === 0) {
-        return "I'm currently offline. Please check your connection and try again.";
+        return "I'm offline right now. Check your connection and try again.";
       }
 
       // Simple similarity based on keyword matching
@@ -327,18 +428,13 @@ IMPORTANT:
         }
       });
 
-      // If we have embeddings, use cosine similarity (simplified version)
-      if (bestResponse.embedding && context.queryEmbedding) {
-        // In a full implementation, you'd calculate cosine similarity here
-      }
-
       return (
-        this.cleanResponse(bestResponse.responseRaw) ||
-        "I understand you want to track your fitness. When I'm online, I can provide better personalized advice."
+        tightenReply(this.cleanResponse(bestResponse.responseRaw)) ||
+        "I can't access my notes right now. Try again when you're connected."
       );
     } catch (error) {
       console.error("Error getting offline response:", error);
-      return "I'm currently offline and can't access my training data. Please try again when connected.";
+      return "I'm offline and can't access training data. Try again when connected.";
     }
   }
 

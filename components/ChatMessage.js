@@ -99,15 +99,14 @@ export default function ChatMessage({ message }) {
             isUser ? "items-end" : "items-start"
           )}
         >
-          {/* Avatar for assistant */}
+          {/* Avatar for assistant
           {isAssistant && (
             <div className="flex items-start gap-3 mb-1">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm">
                 💪
               </div>
             </div>
-          )}
-
+          )} */}
           {/* Message bubble */}
           <div
             className={clsx(
@@ -115,7 +114,7 @@ export default function ChatMessage({ message }) {
               isUser &&
                 "bg-primary text-primary-foreground border-primary/20 shadow-primary/10",
               isAssistant &&
-                "bg-card border-border/50 hover:border-border shadow-lg",
+                "bg-neutral-900 border-border/50 hover:border-border shadow-lg",
               isSystem &&
                 "bg-muted/50 text-muted-foreground text-center italic border-muted"
             )}
@@ -172,7 +171,6 @@ export default function ChatMessage({ message }) {
               </motion.div>
             )}
           </div>
-
           {/* Timestamp */}
           <div className="text-xs text-muted-foreground mt-2 px-1 flex items-center gap-1">
             <span>
