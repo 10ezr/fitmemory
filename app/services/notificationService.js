@@ -114,12 +114,17 @@ class NotificationService {
     const defaultOptions = {
       icon: "/icon-192x192.png",
       badge: "/badge-72x72.png",
-      vibrate: [200, 100, 200],
       requireInteraction: false,
       ...options,
     };
 
-    // Remove actions for regular notifications to avoid the error
+    // Handle silent notifications - remove vibrate if silent is true
+    if (!options.silent) {
+      // Only add vibration for non-silent notifications
+      defaultOptions.vibrate = [200, 100, 200];
+    }
+
+    // Remove actions for regular notifications to avoid other potential errors
     const { actions, ...safeOptions } = defaultOptions;
 
     new Notification(title, safeOptions);
