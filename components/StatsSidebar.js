@@ -85,10 +85,14 @@ export default function StatsSidebar({ stats }) {
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateObj = new Date(year, month, d);
-      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(
+        d
+      ).padStart(2, "0")}`;
 
       const isToday = dateObj.toDateString() === today.toDateString();
-      const inPast = dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const inPast =
+        dateObj <
+        new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
       // Status rules
       const completed = completedDates.has(key);
@@ -147,8 +151,12 @@ export default function StatsSidebar({ stats }) {
                   {/* Streak - square tile */}
                   <Card className="border bg-card text-card-foreground rounded-md">
                     <CardContent className="p-4">
-                      <div className="text-3xl font-bold leading-none">{currentStreak}</div>
-                      <div className="text-xs text-muted-foreground mt-1">Streak Days</div>
+                      <div className="text-3xl font-bold leading-none">
+                        {currentStreak}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Streak Days
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -173,32 +181,38 @@ export default function StatsSidebar({ stats }) {
                 <Card className="bg-card/50 backdrop-blur-sm border-border/50">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-primary" /> This Month
+                      <CalendarDays className="h-4 w-4 text-primary" /> This
+                      Month
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
                     {/* Weekday header */}
                     <div className="grid grid-cols-7 gap-2 mb-2">
-                      {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
-                        <div key={d} className="text-[11px] text-muted-foreground text-center">
-                          {d}
-                        </div>
-                      ))}
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                        (d) => (
+                          <div
+                            key={d}
+                            className="text-[11px] text-muted-foreground text-center"
+                          >
+                            {d}
+                          </div>
+                        )
+                      )}
                     </div>
 
                     {/* Days grid */}
                     <div className="grid grid-cols-7 gap-2">
                       {monthData.cells.map((cell) => {
-                        if (cell.type === 'empty') {
-                          return <div key={cell.key} />
+                        if (cell.type === "empty") {
+                          return <div key={cell.key} />;
                         }
                         const stateClass = cell.completed
-                          ? 'bg-green-500 text-white border-green-600'
+                          ? "bg-green-500 text-white border-green-600"
                           : cell.missed
-                          ? 'bg-destructive/10 text-destructive border-destructive/30'
+                          ? "bg-destructive/10 text-destructive border-destructive/30"
                           : cell.isToday
-                          ? 'bg-primary/15 text-primary border-primary/30'
-                          : 'bg-muted text-muted-foreground border-border/50'
+                          ? "bg-primary/15 text-primary border-primary/30"
+                          : "bg-muted text-muted-foreground border-border/50";
 
                         const Icon = cell.completed
                           ? CheckCircle2
@@ -206,22 +220,35 @@ export default function StatsSidebar({ stats }) {
                           ? XCircle
                           : cell.isToday
                           ? Target
-                          : Circle
+                          : Circle;
 
                         return (
-                          <div key={cell.key} className="flex flex-col items-center gap-1">
+                          <div
+                            key={cell.key}
+                            className="flex flex-col items-center gap-1"
+                          >
                             <div
                               className={cn(
-                                'w-9 h-9 rounded-md border flex items-center justify-center text-xs font-semibold',
+                                "w-9 h-9 rounded-md border flex items-center justify-center text-xs font-semibold",
                                 stateClass
                               )}
-                              aria-label={`${cell.day} ${cell.completed ? 'completed' : cell.missed ? 'missed' : cell.isToday ? 'today' : 'upcoming'}`}
+                              aria-label={`${cell.day} ${
+                                cell.completed
+                                  ? "completed"
+                                  : cell.missed
+                                  ? "missed"
+                                  : cell.isToday
+                                  ? "today"
+                                  : "upcoming"
+                              }`}
                             >
                               <Icon className="h-3.5 w-3.5" />
                             </div>
-                            <div className="text-[11px] text-muted-foreground">{cell.day}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {cell.day}
+                            </div>
                           </div>
-                        )
+                        );
                       })}
                     </div>
                   </CardContent>
@@ -234,16 +261,23 @@ export default function StatsSidebar({ stats }) {
                       <div className="text-center">
                         <div className="text-lg font-bold text-primary">
                           {currentStats?.weeklyCounts
-                            ? currentStats.weeklyCounts.reduce((a,b)=>a+(b||0),0)
+                            ? currentStats.weeklyCounts.reduce(
+                                (a, b) => a + (b || 0),
+                                0
+                              )
                             : workoutsCompleted}
                         </div>
-                        <div className="text-xs text-muted-foreground">This Week</div>
+                        <div className="text-xs text-muted-foreground">
+                          This Week
+                        </div>
                       </div>
                       <div className="text-center">
                         <div className="text-lg font-bold text-primary">
                           {currentStats?.totalWorkouts || 0}
                         </div>
-                        <div className="text-xs text-muted-foreground">Total</div>
+                        <div className="text-xs text-muted-foreground">
+                          Total
+                        </div>
                       </div>
                     </div>
                   </CardContent>
