@@ -47,7 +47,8 @@ export default function TomorrowSidebar() {
 
   return (
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">
-      <div className="p-4 space-y-4">
+      {/* Make inner content independently scrollable like left sidebar */}
+      <div className="p-4 space-y-4 h-[100svh] overflow-y-auto scrollbar-hide">
         {/* 30-Day Challenge moved here */}
         <Card className="border border-neutral-900/10 dark:border-neutral-900">
           <CardHeader className="pb-3">
@@ -152,5 +153,4 @@ export default function TomorrowSidebar() {
         </Card>
       </div>
     </aside>
-  )
-}
+  
