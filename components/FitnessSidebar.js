@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Target,
   CheckCircle2,
   XCircle,
   Circle,
-  CalendarDays,
+  Trophy,
+  Flame,
   BarChart3,
   Settings2,
 } from "lucide-react";
@@ -16,7 +16,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarTrigger,
   useSidebar,
@@ -37,77 +36,51 @@ export default function FitnessSidebar({
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
+  // derive stats with real-time wiring
   useEffect(() => {
     const unsubscribeStats = realTimeSync.subscribe(
       "stats",
-      (data) => {
-        setRealTimeStats(data);
-      },
+      (data) => setRealTimeStats((prev)=> ({ ...prev, ...data })),
       "FitnessSidebar"
     );
-
     const unsubscribeStreak = realTimeSync.subscribe(
       "streak",
-      (data) => {
-        setRealTimeStats((prev) => ({ ...prev, ...data }));
-      },
+      (data) => setRealTimeStats((prev) => ({ ...prev, ...data })),
       "FitnessSidebar"
     );
-
-    return () => {
-      unsubscribeStats();
-      unsubscribeStreak();
-    };
+    return () => { unsubscribeStats(); unsubscribeStreak(); };
   }, []);
 
-  const currentStats = realTimeStats || stats;
-  const currentStreak = currentStats?.dailyStreak || 0;
+  const current = realTimeStats || stats || {};
+  const currentStreak = Number(current.dailyStreak || 0);
+  const totalWorkouts = Number(current.totalWorkouts || 0);
+  const weeklyCount = Array.isArray(current.weeklyCounts)
+    ? current.weeklyCounts.reduce((a,b)=> a + (b||0), 0)
+    : 0;
 
-  // Build month grid
-  const monthData = useMemo(() => {
+  // 30-day challenge model
+  const challengeTarget = 30;
+  // Optional: accept an explicit challengeProgress array of last 30 days booleans/dates from API in future
+  const challengeDays = useMemo(()=>{
+    // Build last 30 days, newest at end
+    const days = [];
     const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstWeekday = new Date(year, month, 1).getDay();
-
-    const completedDates = new Set();
-    const cells = [];
-
-    // Leading empty cells
-    for (let i = 0; i < firstWeekday; i++) {
-      cells.push({ type: "empty", key: `lead-${i}` });
+    for (let i = challengeTarget - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0,10);
+      // If backend starts sending explicit completion dates, check here
+      const completed = Boolean(current?.recentCompletionDates?.includes?.(key));
+      // Fallback: approximate with streak (marks last `currentStreak` days as done)
+      const completedFallback = (challengeTarget - 1 - i) < currentStreak;
+      const isToday = i === 0;
+      days.push({ key, dayNum: d.getDate(), completed: completed || completedFallback, isToday });
     }
+    return days;
+  }, [current?.recentCompletionDates, currentStreak]);
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateObj = new Date(year, month, d);
-      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(
-        d
-      ).padStart(2, "0")}`;
-
-      const isToday = dateObj.toDateString() === today.toDateString();
-      const inPast =
-        dateObj <
-        new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-      const completed = completedDates.has(key);
-      const missed = inPast && !completed && !isToday;
-      const upcoming = !inPast && !completed && !isToday;
-
-      cells.push({
-        type: "day",
-        key,
-        day: d,
-        isToday,
-        completed,
-        missed,
-        upcoming,
-      });
-    }
-
-    return { cells };
-  }, [realTimeStats]);
+  const challengeCompletedCount = challengeDays.filter(d=>d.completed).length;
+  const challengeDone = challengeCompletedCount >= challengeTarget;
 
   return (
     <Sidebar 
@@ -158,110 +131,76 @@ export default function FitnessSidebar({
         <SidebarGroup>
           <SidebarGroupContent>
             {!isCollapsed ? (
-              // Expanded Content
               <div className="space-y-4">
-                {/* Streak Card - Now Full Width */}
+                {/* Streak Hero */}
                 <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card text-card-foreground rounded-md">
                   <CardContent className="p-6 text-center">
-                    <div className="text-4xl font-bold leading-none text-neutral-900 dark:text-neutral-100 mb-2">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Flame className="h-5 w-5 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Current Streak</span>
+                    </div>
+                    <div className="text-5xl font-extrabold leading-none text-neutral-900 dark:text-neutral-100">
                       {currentStreak}
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Day Streak
-                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">days in a row</div>
                   </CardContent>
                 </Card>
 
-                {/* Stats Row */}
+                {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card/30 backdrop-blur-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-primary">
-                        {currentStats?.weeklyCounts
-                          ? currentStats.weeklyCounts.reduce(
-                              (a, b) => a + (b || 0),
-                              0
-                            )
-                          : 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        This Week
-                      </div>
+                      <div className="text-xl font-bold text-primary">{weeklyCount}</div>
+                      <div className="text-xs text-muted-foreground">This Week</div>
                     </CardContent>
                   </Card>
-                  
                   <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card/30 backdrop-blur-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-primary">
-                        {currentStats?.totalWorkouts || 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Total
-                      </div>
+                      <div className="text-xl font-bold text-primary">{totalWorkouts}</div>
+                      <div className="text-xs text-muted-foreground">Total</div>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Month Grid - Now Larger */}
+                {/* 30-Day Challenge */}
                 <Card className="bg-card/50 backdrop-blur-sm border-neutral-900/10 dark:border-neutral-900">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
-                      <CalendarDays className="h-4 w-4 text-primary" /> This Month
+                      <Trophy className="h-4 w-4 text-primary" /> 30-Day Challenge
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0 pb-4">
-                    {/* Weekday header */}
-                    <div className="grid grid-cols-7 gap-2 mb-3">
-                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
-                        (d) => (
-                          <div
-                            key={d}
-                            className="text-xs text-muted-foreground text-center font-medium"
-                          >
-                            {d}
-                          </div>
-                        )
-                      )}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs text-muted-foreground">Progress</div>
+                      <div className={cn("text-xs font-medium", challengeDone ? "text-green-500" : "text-primary")}> 
+                        {challengeCompletedCount}/{challengeTarget}
+                      </div>
                     </div>
 
-                    {/* Days grid - Larger cells */}
-                    <div className="grid grid-cols-7 gap-2">
-                      {monthData.cells.map((cell) => {
-                        if (cell.type === "empty") {
-                          return <div key={cell.key} />;
-                        }
-                        
+                    {/* Grid: 6 columns x 5 rows = 30 */}
+                    <div className="grid grid-cols-6 gap-2">
+                      {challengeDays.map((cell, idx) => {
                         const stateClass = cell.completed
                           ? "bg-green-500 text-white border-green-600"
-                          : cell.missed
-                          ? "bg-destructive/10 text-destructive border-destructive/30"
                           : cell.isToday
                           ? "bg-primary/15 text-primary border-primary/30"
                           : "bg-muted text-muted-foreground border-border/50";
 
-                        const Icon = cell.completed
-                          ? CheckCircle2
-                          : cell.missed
-                          ? XCircle
-                          : cell.isToday
-                          ? Target
-                          : Circle;
+                        const Icon = cell.completed ? CheckCircle2 : (cell.isToday ? Flame : Circle);
 
                         return (
-                          <div
-                            key={cell.key}
-                            className="flex flex-col items-center gap-1"
-                          >
+                          <div key={cell.key} className="flex flex-col items-center gap-1">
                             <div
                               className={cn(
                                 "w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold hover:scale-105 transition-transform",
                                 stateClass
                               )}
+                              aria-label={`Day ${idx+1} ${cell.completed ? "completed" : (cell.isToday ? "today" : "pending")}`}
                             >
                               <Icon className="h-4 w-4" />
                             </div>
-                            <div className="text-[11px] text-muted-foreground font-medium">
-                              {cell.day}
+                            <div className="text-[10px] text-muted-foreground font-medium">
+                              {cell.dayNum}
                             </div>
                           </div>
                         );
@@ -271,19 +210,16 @@ export default function FitnessSidebar({
                 </Card>
               </div>
             ) : (
-              // Collapsed Content
+              // Collapsed view
               <div className="flex flex-col items-center space-y-4 pt-6">
                 <div className="space-y-3">
                   <div className="w-12 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
                     <span>{currentStreak}</span>
                   </div>
-                  
                   <div className="w-12 h-10 rounded-lg bg-card border border-neutral-900/10 dark:border-neutral-900 flex items-center justify-center">
-                    <CalendarDays className="h-5 w-5 text-primary" />
+                    <Trophy className="h-5 w-5 text-primary" />
                   </div>
                 </div>
-
-                {/* Minimal month cue - Larger */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[...Array(9)].map((_, i) => (
                     <div key={i} className="w-3.5 h-3.5 rounded bg-muted" />
