@@ -150,43 +150,42 @@ export default function TomorrowSidebar() {
           </CardHeader>
           <CardContent className="pt-0 pb-4">
 <<<<<<< HEAD
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs text-muted-foreground">Progress</div>
-              <div className="text-xs font-medium text-primary">--/30</div>
-            </div>
-            <div className="grid grid-cols-6 gap-2">
-              {days.map((cell, idx) => {
-                const stateClass = cell.completed
-                  ? "bg-green-500 text-white border-green-600"
-                  : cell.isToday
-                  ? "bg-primary/15 text-primary border-primary/30"
-                  : "bg-muted text-muted-foreground border-border/50";
+            <><div className="flex items-center justify-between mb-3">
+      <div className="text-xs text-muted-foreground">Progress</div>
+      <div className="text-xs font-medium text-primary">--/30</div>
+    </div><div className="grid grid-cols-6 gap-2">
+        {days.map((cell, idx) => {
+          const stateClass = cell.completed
+            ? "bg-green-500 text-white border-green-600"
+            : cell.isToday
+              ? "bg-primary/15 text-primary border-primary/30"
+              : "bg-muted text-muted-foreground border-border/50";
 
-                const Icon = cell.completed
-                  ? CheckCircle2
-                  : cell.isToday
-                  ? Flame
-                  : Circle;
+          const Icon = cell.completed
+            ? CheckCircle2
+            : cell.isToday
+              ? Flame
+              : Circle;
 
-                return (
-                  <div
-                    key={cell.key}
-                    className="flex flex-col items-center gap-1"
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold ${stateClass}`}
-                      aria-label={`Day ${idx + 1}`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-medium">
-                      {cell.dayNum}
-                    </div>
-                  </div>
-                );
-              })}
+          return (
+            <div
+              key={cell.key}
+              className="flex flex-col items-center gap-1"
+            >
+              <div
+                className={`w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold ${stateClass}`}
+                aria-label={`Day ${idx + 1}`}
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="text-[10px] text-muted-foreground font-medium">
+                {cell.dayNum}
+              </div>
             </div>
-=======
+          );
+        })}
+      </div></>
+
             {challengeLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-4 w-20" />
