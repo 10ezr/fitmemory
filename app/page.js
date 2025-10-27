@@ -3,18 +3,15 @@
 import { useState, useEffect, useRef } from "react"
 import { PaperAirplaneIcon, ChartBarIcon } from "@heroicons/react/24/solid"
 import ChatMessage from "@/components/ChatMessage"
-import StatsSidebar from "@/components/StatsSidebar"
+import FitnessSidebar from "@/components/FitnessSidebar"
 import TomorrowSidebar from "@/components/TomorrowSidebar"
-import AdminPanel from "@/components/AdminPanel"
 import WorkoutTimer from "@/components/WorkoutTimer"
 import AnalyticsDashboard from "@/components/AnalyticsDashboard"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Settings2Icon, PanelLeftOpen, PanelLeftClose } from "lucide-react"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import realTimeSync from "@/app/services/realTimeSync"
 
 export default function Home() {
@@ -28,7 +25,6 @@ export default function Home() {
   const [todaysWorkout, setTodaysWorkout] = useState(null)
   const [timerData, setTimerData] = useState([])
   const [notificationService, setNotificationService] = useState(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -134,102 +130,79 @@ export default function Home() {
   const insertQuickMessage = (message) => setInput(message)
 
   return (
-    <div className="flex h-full gap-0 overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex md:w-72 lg:w-96 flex-col border-r overflow-hidden">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="text-sm font-medium">Overview</div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowAnalytics(true)} title="Analytics"><ChartBarIcon className="h-4 w-4" /></Button>
-            <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Settings2Icon /></Button></PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-0">
-                <div className="border-b px-3 py-2 text-sm font-medium">Settings</div>
-                <div className="max-h-[60vh] overflow-y-auto"><AdminPanel onDataChange={refreshStatsAndBroadcast} /></div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4"><StatsSidebar stats={stats} /></div>
-        <div className="border-t px-4 py-3 text-xs text-muted-foreground">FitMemory</div>
-      </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex h-screen w-full overflow-hidden bg-background">
+        <FitnessSidebar 
+          stats={stats}
+          onDataChange={refreshStatsAndBroadcast}
+          onShowAnalytics={() => setShowAnalytics(true)}
+        />
+        
+        <SidebarInset className="flex-1">
+          <div className="flex h-full flex-col overflow-hidden">
+            {/* Chat column */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
+                {messages.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">👋</div>
+                    <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
+                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">I'm your AI fitness coach. I can help you track workouts, create plans, and stay motivated on your fitness journey.</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {["Create my first workout plan","Log today's exercise","Show my progress"].map((suggestion, i) => (
+                        <Button key={i} variant="outline" size="sm" onClick={() => insertQuickMessage(suggestion)} className="rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10">{suggestion}</Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-      {/* Mobile opener */}
-      <div className="md:hidden p-2 border-b flex items-center gap-2">
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon">{sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-80 p-0">
-            <div className="border-b px-4 py-3 text-sm font-medium">Overview</div>
-            <div className="h-[calc(100vh-3rem)] overflow-y-auto p-4"><StatsSidebar stats={stats} /></div>
-          </SheetContent>
-        </Sheet>
-        <div className="ml-auto"><Button variant="ghost" size="icon" onClick={() => setShowAnalytics(true)}><ChartBarIcon className="h-4 w-4" /></Button></div>
-      </div>
+                {messages.map((message) => (<ChatMessage key={message.id || message._id} message={message} />))}
 
-      {/* Chat column */}
-      <div className="flex-1 flex h-full flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
-            {messages.length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">👋</div>
-                <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">I'm your AI fitness coach. I can help you track workouts, create plans, and stay motivated on your fitness journey.</p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {["Create my first workout plan","Log today's exercise","Show my progress"].map((suggestion, i) => (
-                    <Button key={i} variant="outline" size="sm" onClick={() => insertQuickMessage(suggestion)} className="rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10">{suggestion}</Button>
-                  ))}
-                </div>
+                {loading && (
+                  <div className="flex justify-start">
+                    <Card className="bg-card border"><CardContent className="flex items-center space-x-2 p-4">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                      </div>
+                      <span className="text-sm text-muted-foreground ml-2">FitMemory is thinking...</span>
+                    </CardContent></Card>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
-            )}
+            </div>
 
-            {messages.map((message) => (<ChatMessage key={message.id || message._id} message={message} />))}
-
-            {loading && (
-              <div className="flex justify-start">
-                <Card className="bg-card border"><CardContent className="flex items-center space-x-2 p-4">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-                  </div>
-                  <span className="text-sm text-muted-foreground ml-2">FitMemory is thinking...</span>
-                </CardContent></Card>
+            {/* Input */}
+            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="w-full max-w-4xl mx-auto p-4">
+                <form onSubmit={handleSubmit}>
+                  <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
+                    <CardContent className="p-3">
+                      <div className="flex items-end gap-3">
+                        <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask FitMemory anything about fitness, workouts, or your progress..." className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" rows={1} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }} onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" }} />
+                        <Button type="submit" disabled={loading || !input.trim()} size="sm" className="shrink-0 rounded-xl px-3 h-9">{loading ? (<div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />) : (<PaperAirplaneIcon className="w-4 h-4" />)}</Button>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="text-xs text-muted-foreground">Press Enter to send, Shift+Enter for new line</div>
+                        <Badge variant="secondary" className="text-xs">{input.length}/1000</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </form>
               </div>
-            )}
-            <div ref={messagesEndRef} />
+            </div>
           </div>
-        </div>
+        </SidebarInset>
 
-        {/* Input */}
-        <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="w-full max-w-4xl mx-auto p-4">
-            <form onSubmit={handleSubmit}>
-              <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
-                <CardContent className="p-3">
-                  <div className="flex items-end gap-3">
-                    <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask FitMemory anything about fitness, workouts, or your progress..." className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" rows={1} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }} onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" }} />
-                    <Button type="submit" disabled={loading || !input.trim()} size="sm" className="shrink-0 rounded-xl px-3 h-9">{loading ? (<div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />) : (<PaperAirplaneIcon className="w-4 h-4" />)}</Button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="text-xs text-muted-foreground">Press Enter to send, Shift+Enter for new line</div>
-                    <Badge variant="secondary" className="text-xs">{input.length}/1000</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </form>
-          </div>
-        </div>
+        {/* Right sidebar */}
+        <TomorrowSidebar />
+
+        {/* Modals */}
+        <WorkoutTimer workoutPlan={todaysWorkout} onComplete={(w)=>{ setTimerData((p)=>[...p,w]); refreshStatsAndBroadcast(); }} onCancel={()=>{}} isActive={showTimer} />
+        {showAnalytics && (<AnalyticsDashboard workoutData={stats?.recentWorkouts || []} streakData={stats?.streakHistory || []} timerData={timerData} onClose={() => setShowAnalytics(false)} />)}
       </div>
-
-      {/* Right sidebar */}
-      <TomorrowSidebar />
-
-      {/* Modals */}
-      <WorkoutTimer workoutPlan={todaysWorkout} onComplete={(w)=>{ setTimerData((p)=>[...p,w]); refreshStatsAndBroadcast(); }} onCancel={()=>{}} isActive={showTimer} />
-      {showAnalytics && (<AnalyticsDashboard workoutData={stats?.recentWorkouts || []} streakData={stats?.streakHistory || []} timerData={timerData} onClose={() => setShowAnalytics(false)} />)}
-    </div>
+    </SidebarProvider>
   )
 }
