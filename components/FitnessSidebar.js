@@ -127,7 +127,21 @@ export default function FitnessSidebar({
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="space-y-4">
-                {/* Time & Date Card (moved from right) */}
+                {/* Streak Hero (restored) */}
+                <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card text-card-foreground rounded-md">
+                  <CardContent className="p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Flame className="h-5 w-5 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Current Streak</span>
+                    </div>
+                    <div className="text-5xl font-extrabold leading-none text-neutral-900 dark:text-neutral-100">
+                      {currentStreak}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">days in a row</div>
+                  </CardContent>
+                </Card>
+
+                {/* Time & Date Card */}
                 <Card className="border border-neutral-900/10 dark:border-neutral-900">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
