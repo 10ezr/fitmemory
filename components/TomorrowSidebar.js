@@ -1,48 +1,61 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { AlertCircle, Clock, Target, Trophy, CheckCircle2, Circle, Flame } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertCircle,
+  Clock,
+  Target,
+  Trophy,
+  CheckCircle2,
+  Circle,
+  Flame,
+} from "lucide-react";
 
 export default function TomorrowSidebar() {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState(null)
-  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
   const fetchPlan = async () => {
     try {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
-      const res = await fetch("/api/tomorrow-workout")
-      const json = await res.json()
+      const res = await fetch("/api/tomorrow-workout");
+      const json = await res.json();
 
       if (res.ok) {
-        setData(json)
+        setData(json);
       } else {
-        setError(json.error || "Failed to load")
+        setError(json.error || "Failed to load");
       }
     } catch (e) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchPlan()
-  }, [])
+    fetchPlan();
+  }, []);
 
   // Build 30-day challenge grid using recentCompletionDates fallback to streak-like display if backend adds later
-  const challengeTarget = 30
-  const today = new Date()
-  const days = []
+  const challengeTarget = 30;
+  const today = new Date();
+  const days = [];
   for (let i = challengeTarget - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    days.push({ key: d.toISOString().slice(0,10), dayNum: d.getDate(), isToday: i === 0, completed: false })
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push({
+      key: d.toISOString().slice(0, 10),
+      dayNum: d.getDate(),
+      isToday: i === 0,
+      completed: false,
+    });
   }
 
   return (
@@ -68,18 +81,30 @@ export default function TomorrowSidebar() {
                   ? "bg-green-500 text-white border-green-600"
                   : cell.isToday
                   ? "bg-primary/15 text-primary border-primary/30"
-                  : "bg-muted text-muted-foreground border-border/50"
+                  : "bg-muted text-muted-foreground border-border/50";
 
-                const Icon = cell.completed ? CheckCircle2 : (cell.isToday ? Flame : Circle)
+                const Icon = cell.completed
+                  ? CheckCircle2
+                  : cell.isToday
+                  ? Flame
+                  : Circle;
 
                 return (
-                  <div key={cell.key} className="flex flex-col items-center gap-1">
-                    <div className={`w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold ${stateClass}`} aria-label={`Day ${idx+1}`}>
+                  <div
+                    key={cell.key}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold ${stateClass}`}
+                      aria-label={`Day ${idx + 1}`}
+                    >
                       <Icon className="h-4 w-4" />
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-medium">{cell.dayNum}</div>
+                    <div className="text-[10px] text-muted-foreground font-medium">
+                      {cell.dayNum}
+                    </div>
                   </div>
-                )
+                );
               })}
             </div>
           </CardContent>
@@ -90,7 +115,7 @@ export default function TomorrowSidebar() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
-              Tomorrow's Workout
+              Tomorrow&apos;s Workout
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -105,34 +130,43 @@ export default function TomorrowSidebar() {
                 </div>
               </div>
             )}
-            
+
             {error && (
               <div className="flex items-center gap-2 text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 <span className="text-sm">Error: {error}</span>
               </div>
             )}
-            
+
             {!loading && !error && !data && (
               <div className="text-center py-4">
-                <div className="text-muted-foreground text-sm">No data received</div>
+                <div className="text-muted-foreground text-sm">
+                  No data received
+                </div>
               </div>
             )}
-            
+
             {data?.workout && (
               <div className="space-y-4">
                 <div>
-                  <h3 className="font-medium text-foreground mb-2">{data.workout.name}</h3>
+                  <h3 className="font-medium text-foreground mb-2">
+                    {data.workout.name}
+                  </h3>
                   <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="flex items-center gap-1">
+                    <Badge
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
                       <Clock className="h-3 w-3" />
                       {data.workout.estimatedDuration} min
                     </Badge>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Exercises</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Exercises
+                  </h4>
                   <div className="space-y-1">
                     {data.workout.exercises?.map((ex, i) => (
                       <div
@@ -153,4 +187,5 @@ export default function TomorrowSidebar() {
         </Card>
       </div>
     </aside>
-  
+  );
+}

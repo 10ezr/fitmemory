@@ -147,7 +147,7 @@ export default function Home() {
                   <div className="text-center py-12">
                     <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">👋</div>
                     <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
-                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">I'm your AI fitness coach. I can help you track workouts, create plans, and stay motivated on your fitness journey.</p>
+                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">I&apos;m your AI fitness coach. I can help you track workouts, create plans, and stay motivated on your fitness journey.</p>
                     <div className="flex flex-wrap gap-2 justify-center">
                       {["Create my first workout plan","Log today's exercise","Show my progress"].map((suggestion, i) => (
                         <Button key={i} variant="outline" size="sm" onClick={() => insertQuickMessage(suggestion)} className="rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10">{suggestion}</Button>
