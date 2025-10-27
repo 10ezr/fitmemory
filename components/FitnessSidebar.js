@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import realTimeSync from "@/app/services/realTimeSync";
-import { WeeklyGoalsChart } from "@/components/ui/weekly-goals-chart";
 import AdminPanel from "@/components/AdminPanel";
 
 export default function FitnessSidebar({ 
@@ -63,15 +62,6 @@ export default function FitnessSidebar({
 
   const currentStats = realTimeStats || stats;
   const currentStreak = currentStats?.dailyStreak || 0;
-
-  // Compute weekly progress
-  const weeklyGoal = 7;
-  const workoutsCompleted = useMemo(() => {
-    if (Array.isArray(currentStats?.weeklyCounts)) {
-      return currentStats.weeklyCounts.reduce((a, b) => a + (b || 0), 0);
-    }
-    return Math.min(weeklyGoal, currentStreak);
-  }, [currentStats, currentStreak]);
 
   // Build month grid
   const monthData = useMemo(() => {
@@ -170,50 +160,63 @@ export default function FitnessSidebar({
             {!isCollapsed ? (
               // Expanded Content
               <div className="space-y-4">
-                {/* Top Row: Streak + Weekly Goal */}
+                {/* Streak Card - Now Full Width */}
+                <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card text-card-foreground rounded-md">
+                  <CardContent className="p-6 text-center">
+                    <div className="text-4xl font-bold leading-none text-neutral-900 dark:text-neutral-100 mb-2">
+                      {currentStreak}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Day Streak
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Stats Row */}
                 <div className="grid grid-cols-2 gap-3">
-                  <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card text-card-foreground rounded-md">
-                    <CardContent className="p-4">
-                      <div className="text-3xl font-bold leading-none text-neutral-900 dark:text-neutral-100">
-                        {currentStreak}
+                  <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card/30 backdrop-blur-sm">
+                    <CardContent className="p-4 text-center">
+                      <div className="text-xl font-bold text-primary">
+                        {currentStats?.weeklyCounts
+                          ? currentStats.weeklyCounts.reduce(
+                              (a, b) => a + (b || 0),
+                              0
+                            )
+                          : 0}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Streak Days
+                      <div className="text-xs text-muted-foreground">
+                        This Week
                       </div>
                     </CardContent>
                   </Card>
-
-                  <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card text-card-foreground">
-                    <CardHeader className="pb-1 pt-3 px-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Target className="h-4 w-4 text-primary" /> Weekly Goal
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <WeeklyGoalsChart
-                        workoutsCompleted={workoutsCompleted}
-                        weeklyGoal={weeklyGoal}
-                        className="pt-1"
-                      />
+                  
+                  <Card className="border border-neutral-900/10 dark:border-neutral-900 bg-card/30 backdrop-blur-sm">
+                    <CardContent className="p-4 text-center">
+                      <div className="text-xl font-bold text-primary">
+                        {currentStats?.totalWorkouts || 0}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Total
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Month Grid */}
+                {/* Month Grid - Now Larger */}
                 <Card className="bg-card/50 backdrop-blur-sm border-neutral-900/10 dark:border-neutral-900">
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
                       <CalendarDays className="h-4 w-4 text-primary" /> This Month
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-0">
+                  <CardContent className="pt-0 pb-4">
                     {/* Weekday header */}
-                    <div className="grid grid-cols-7 gap-2 mb-2">
+                    <div className="grid grid-cols-7 gap-2 mb-3">
                       {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
                         (d) => (
                           <div
                             key={d}
-                            className="text-[11px] text-muted-foreground text-center"
+                            className="text-xs text-muted-foreground text-center font-medium"
                           >
                             {d}
                           </div>
@@ -221,7 +224,7 @@ export default function FitnessSidebar({
                       )}
                     </div>
 
-                    {/* Days grid */}
+                    {/* Days grid - Larger cells */}
                     <div className="grid grid-cols-7 gap-2">
                       {monthData.cells.map((cell) => {
                         if (cell.type === "empty") {
@@ -251,13 +254,13 @@ export default function FitnessSidebar({
                           >
                             <div
                               className={cn(
-                                "w-9 h-9 rounded-md border flex items-center justify-center text-xs font-semibold",
+                                "w-10 h-10 rounded-md border flex items-center justify-center text-xs font-semibold hover:scale-105 transition-transform",
                                 stateClass
                               )}
                             >
-                              <Icon className="h-3.5 w-3.5" />
+                              <Icon className="h-4 w-4" />
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground font-medium">
                               {cell.day}
                             </div>
                           </div>
@@ -266,52 +269,24 @@ export default function FitnessSidebar({
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Quick Stats */}
-                <Card className="bg-card/30 backdrop-blur-sm border-neutral-900/10 dark:border-neutral-900">
-                  <CardContent className="p-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-primary">
-                          {currentStats?.weeklyCounts
-                            ? currentStats.weeklyCounts.reduce(
-                                (a, b) => a + (b || 0),
-                                0
-                              )
-                            : workoutsCompleted}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          This Week
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-primary">
-                          {currentStats?.totalWorkouts || 0}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Total
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             ) : (
               // Collapsed Content
-              <div className="flex flex-col items-center space-y-3 pt-4">
-                <div className="space-y-2">
-                  <div className="w-10 h-8 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+              <div className="flex flex-col items-center space-y-4 pt-6">
+                <div className="space-y-3">
+                  <div className="w-12 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
                     <span>{currentStreak}</span>
                   </div>
-                  <div className="w-10 h-10 rounded bg-card border border-neutral-900/10 dark:border-neutral-900 flex items-center justify-center">
-                    <Target className="h-5 w-5 text-primary" />
+                  
+                  <div className="w-12 h-10 rounded-lg bg-card border border-neutral-900/10 dark:border-neutral-900 flex items-center justify-center">
+                    <CalendarDays className="h-5 w-5 text-primary" />
                   </div>
                 </div>
 
-                {/* Minimal month cue */}
-                <div className="grid grid-cols-3 gap-1">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="w-3 h-3 rounded bg-muted" />
+                {/* Minimal month cue - Larger */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[...Array(9)].map((_, i) => (
+                    <div key={i} className="w-3.5 h-3.5 rounded bg-muted" />
                   ))}
                 </div>
               </div>
