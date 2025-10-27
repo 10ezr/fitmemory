@@ -7,8 +7,8 @@ import {
   XCircle,
   Circle,
   CalendarDays,
-  ChartBarIcon,
-  Settings2Icon,
+  BarChart3,
+  Settings2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -142,12 +142,12 @@ export default function FitnessSidebar({
                   onClick={onShowAnalytics}
                   title="Analytics"
                 >
-                  <ChartBarIcon className="h-4 w-4" />
+                  <BarChart3 className="h-4 w-4" />
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Settings2Icon className="h-4 w-4" />
+                      <Settings2 className="h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-72 p-0">
