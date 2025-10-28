@@ -10,11 +10,8 @@ function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
     focus: null,
   };
 
-  // Check memories for strength assessments
   memories.forEach((m) => {
     const content = m.content.toLowerCase();
-
-    // Weak areas
     if (
       content.includes("weak") ||
       content.includes("lagging") ||
@@ -29,7 +26,6 @@ function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
         analysis.weak.push("core");
     }
 
-    // Strong areas
     if (
       content.includes("strong") ||
       content.includes("good at") ||
@@ -44,7 +40,6 @@ function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
         analysis.strong.push("core");
     }
 
-    // Focus requests
     if (
       content.includes("focus on") ||
       content.includes("work on") ||
@@ -61,7 +56,7 @@ function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
   return analysis;
 }
 
-function buildAdaptiveWorkout(baseDay, analysis, constraints) {
+function buildAdaptiveWorkout(baseDay, analysis, constraints, context) {
   const workouts = {
     chest_focus: {
       name: "Tomorrow — Chest Power Focus",
@@ -104,7 +99,6 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
         },
       ],
     },
-
     back_focus: {
       name: "Tomorrow — Back Development",
       estimatedDuration: 40,
@@ -146,7 +140,6 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
         },
       ],
     },
-
     shoulders_focus: {
       name: "Tomorrow — Shoulder Builder",
       estimatedDuration: 35,
@@ -188,7 +181,6 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
         },
       ],
     },
-
     legs_focus: {
       name: "Tomorrow — Leg Power",
       estimatedDuration: 45,
@@ -230,7 +222,6 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
         },
       ],
     },
-
     balanced: {
       name: "Tomorrow — Balanced Upper Body",
       estimatedDuration: 35,
@@ -268,20 +259,16 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
     },
   };
 
-  // Choose workout based on analysis
   let selectedWorkout;
-
   if (analysis.focus) {
     selectedWorkout = workouts[`${analysis.focus}_focus`] || workouts.balanced;
   } else if (analysis.weak.length > 0) {
-    // Focus on first weak area
     selectedWorkout =
       workouts[`${analysis.weak[0]}_focus`] || workouts.balanced;
   } else {
     selectedWorkout = workouts.balanced;
   }
 
-  // Apply constraint modifications
   const adaptations = [];
 
   if (constraints.some((c) => c.content.toLowerCase().includes("shoulder"))) {
@@ -314,6 +301,18 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints) {
     });
   }
 
+  // Adapt based on today's training to avoid overuse and alternate focus
+  if (context?.today?.workedOut) {
+    const todayName = (context.today.lastWorkoutName || "").toLowerCase();
+    const contains = (s) => todayName.includes(s);
+    if (contains("chest") && selectedWorkout === workouts.chest_focus)
+      selectedWorkout = workouts.back_focus;
+    if (contains("legs") && selectedWorkout === workouts.legs_focus)
+      selectedWorkout = workouts.shoulders_focus;
+    if (contains("back") && selectedWorkout === workouts.back_focus)
+      selectedWorkout = workouts.chest_focus;
+  }
+
   return { workout: selectedWorkout, adaptations, analysis };
 }
 
@@ -331,8 +330,6 @@ export async function GET() {
 
     try {
       const memoryService = new MemoryService();
-
-      // Get all relevant data
       const [constraintMems, injuryMems, allMems, workouts] = await Promise.all(
         [
           memoryService.getMemoriesByType("constraint", 10),
@@ -341,7 +338,6 @@ export async function GET() {
           memoryService.getRecentWorkouts(5),
         ]
       );
-
       constraints = [...(constraintMems || []), ...(injuryMems || [])];
       memories = [...(allMems || []), ...constraints];
       recentWorkouts = workouts || [];
@@ -349,9 +345,27 @@ export async function GET() {
       console.log("Memory service unavailable");
     }
 
-    // Analyze and build adaptive workout
+    // Detect if today had a workout and capture last workout name
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    const todayWorkouts = await Workout.find({
+      date: { $gte: startOfDay, $lte: endOfDay },
+    })
+      .sort({ date: -1 })
+      .limit(1)
+      .lean();
+    const todayContext = {
+      workedOut: todayWorkouts.length > 0,
+      lastWorkoutName: todayWorkouts[0]?.name || null,
+    };
+
     const analysis = analyzeStrengthsAndWeaknesses(memories, recentWorkouts);
-    const result = buildAdaptiveWorkout("upper", analysis, constraints);
+    const result = buildAdaptiveWorkout("upper", analysis, constraints, {
+      today: todayContext,
+    });
 
     return NextResponse.json({
       date: tomorrow.toISOString(),
@@ -364,6 +378,7 @@ export async function GET() {
         currentFocus: analysis.focus,
       },
       source: "ai-adaptive",
+      context: todayContext,
     });
   } catch (err) {
     console.error("Error generating adaptive workout:", err);

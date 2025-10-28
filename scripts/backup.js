@@ -3,7 +3,7 @@
 require("dotenv").config();
 const fs = require("fs").promises;
 const path = require("path");
-const DatabaseService = require("@/services/database");
+const mongoose = require("mongoose");
 const {
   User,
   Workout,
@@ -17,8 +17,10 @@ async function createBackup() {
   try {
     console.log("🔄 Starting backup process...");
 
-    // Connect to database
-    await DatabaseService.connect();
+    // Connect to database using lib/database (ESM default export)
+    const connectDatabase = (await import("@/lib/database"))?.default;
+    if (!connectDatabase) throw new Error("Failed to load DB connector");
+    await connectDatabase();
     console.log("✅ Connected to database");
 
     // Fetch all data
@@ -107,8 +109,10 @@ async function createBackup() {
     console.error("❌ Backup failed:", error);
     process.exit(1);
   } finally {
-    await DatabaseService.disconnect();
-    console.log("👋 Disconnected from database");
+    try {
+      await mongoose.disconnect();
+      console.log("👋 Disconnected from database");
+    } catch {}
   }
 }
 
@@ -147,9 +151,7 @@ async function cleanupOldBackups(backupDir, keepCount = 10) {
   }
 }
 
-// Handle command line execution
 if (require.main === module) {
-  // Parse command line arguments
   const args = process.argv.slice(2);
   const showHelp = args.includes("--help") || args.includes("-h");
 
@@ -169,18 +171,10 @@ Environment Variables:
 Examples:
   node scripts/backup.js
   npm run backup
-  
-The script will:
-1. Connect to MongoDB
-2. Export all collections to a timestamped JSON file
-3. Save the file to the ./backups directory
-4. Clean up old backup files (keeps last 10)
-5. Update the lastBackup timestamp in app config
-    `);
+  `);
     process.exit(0);
   }
 
-  // Run the backup
   createBackup();
 }
 
