@@ -5,7 +5,7 @@ import { GeminiResponse } from "@/models/index.js";
 function tightenReply(text) {
   if (!text || typeof text !== "string") return text;
 
-  // Remove filler phrases common to verbose coaching
+  // Remove unnecessary filler phrases
   const fillers = [
     /let's look at/i,
     /powerful start/i,
@@ -20,18 +20,18 @@ function tightenReply(text) {
     /artificial intelligence/i,
     /machine learning/i,
   ];
-  fillers.forEach((re) => {
-    text = text.replace(re, "").trim();
-  });
+  for (const f of fillers) {
+    text = text.replace(f, "").trim();
+  }
 
   // Normalize excessive whitespace
   text = text.replace(/\n{3,}/g, "\n\n").trim();
 
-  // Hard cap length to keep it crisp
+  // Limit length to 800 characters and cut at sentence end if possible
   if (text.length > 800) {
-    const cutoff = text.slice(0, 700);
-    const lastPeriod = cutoff.lastIndexOf(".");
-    text = cutoff.slice(0, lastPeriod + 1);
+    let cutoff = text.slice(0, 700);
+    let last = cutoff.lastIndexOf(".");
+    text = last !== -1 ? cutoff.slice(0, last + 1) : cutoff;
   }
 
   return text;
@@ -56,29 +56,25 @@ class GeminiService {
   }
 
   async generateResponse(prompt, context = {}) {
-    let response;
-    let actions = null;
-    let embedding = null;
+    let response,
+      actions = null,
+      embedding = null;
 
     try {
       if (this.model && this.apiKey) {
-        // Online mode: call Gemini API
         const systemPrompt = this.buildSystemPrompt(context);
         const fullPrompt = `${systemPrompt}\n\nEzra: ${prompt}`;
-
         const result = await this.model.generateContent(fullPrompt);
-        const rawResponse = result.response.text();
+        const rawResponse = result.response.text && result.response.text();
 
-        // Parse actions from response if present
+        // Defensive programming: handle when API returns nothing
+        if (!rawResponse) {
+          throw new Error("No response from Gemini API");
+        }
+
         actions = this.parseActions(rawResponse);
-
-        // Generate embedding for the response
         embedding = await this.generateEmbedding(rawResponse);
-
-        // Clean and tighten response
         response = tightenReply(this.cleanResponse(rawResponse));
-
-        // Persist the response
         await this.persistResponse({
           prompt: fullPrompt,
           responseRaw: rawResponse,
@@ -87,188 +83,215 @@ class GeminiService {
           metadata: { model: "gemini-pro", context },
         });
       } else {
-        // Offline mode: use most similar persisted response
         response = await this.getOfflineResponse(prompt, context);
       }
-
-      return {
-        reply: response,
-        actions: actions || [],
-      };
+      return { reply: response, actions: actions || [] };
     } catch (error) {
       console.error("Gemini API error, falling back to offline mode:", error);
-      response = await this.getOfflineResponse(prompt, context);
-
-      return {
-        reply: response,
-        actions: [],
-      };
+      const offlineResponse = await this.getOfflineResponse(prompt, context);
+      return { reply: offlineResponse, actions: [] };
     }
   }
 
   buildSystemPrompt(context) {
     const { user, recentWorkouts, memories, lastMessages, workoutJustLogged } =
       context;
-
     const currentDate = new Date();
-    const dayOfWeek = currentDate.toLocaleDateString("en-US", {
-      weekday: "long",
-    });
-    const dateString = currentDate.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
 
-    let systemPrompt = `You are Ezra's personal fitness coach. You know his body, his limits, his goals, and his patterns better than anyone.
-
-TODAY: ${dateString} - ${dayOfWeek}
-TIME: ${currentDate.toLocaleTimeString()}
-
-RESPONSE FORMAT (MANDATORY):
-When providing workout plans, ALWAYS use this exact structure:
-
-[Day] [Date] – [Workout Name] ([Duration] min)
-[Short description of purpose - 1 line]
-
-[separator]
-
-"in bold big heading" Warm-up ([X] min)
-• [Exercise] – [Duration/sets×reps]
-• [Exercise] – [Duration/sets×reps]
-• [Exercise] – [Duration/sets×reps]
-• [Exercise] – [Duration/sets×reps]
-
-[separator]
-
-"in bold big heading" Workout
-• [Exercise] – [sets]×[reps]
-• [Exercise] – [sets]×[reps] 
-• [Exercise] – [sets]×[reps]
-• [Exercise] – [sets]×[reps]
-• [Exercise] – [sets]×[reps]
-
-Optional: [bonus exercise or finisher]
-
-[separator]
-
-Rest: [rest periods]
-Tip: [coaching cue - form/pacing/technique]
-
-[separator]
-
-Nutrition Reminder
-• Protein: [amount]g
-• Calories: [guidance]
-• Hydration: [amount]L
-• Optional: [specific food timing]
-
-[separator]
-
-Aura Quote: "[motivational quote]" – [attribution]
-
-HOW YOU COACH:
-- Cut the BS. Give facts: what he did, where he's at, what's next.
-- When giving workouts, ALWAYS use the format above
-- Call out what you see: "Your squats are getting stronger" or "You're favoring your right side"
-- No cheerleader talk. Real coach energy.
-- If something's wrong with his form or he's hurt, say it straight.
-- Never mention you're an AI or artificial intelligence. You're his coach, period.
-
-REAL COACHING PRINCIPLES:
-- Progressive overload: add weight, reps, or complexity when he's ready
-- Weak point priority: if his shoulders are lagging, hit them more
-- Recovery matters: if he's beat up, back off or switch focus
-- Movement quality over ego lifting
-- Work around injuries, don't ignore them
-- Build habits that stick, not perfect plans that don't
-- Push hard when he can handle it, ease up when he can't
-
-ADAPTATION ON THE FLY:
-- Bad shoulder? Skip overhead work, hit chest and back different ways
-- Knee acting up? Single-leg work, machines, upper body focus
-- Tired? Drop intensity but keep moving
-- Limited time? Compound movements, supersets
-- No equipment? Bodyweight, isometrics, get creative
-- Feeling strong? Time to level up
-
-TRAINING FOCUS BY DAY (adapt based on Ezra's needs):
-- Monday: Push (chest, shoulders, triceps) 
-- Tuesday: Pull (back, biceps)
-- Wednesday: Legs (quads, hams, glutes)
-- Thursday: Core & conditioning
-- Friday: Full body or weak points
-- Weekend: Active recovery or catch-up
-
-WHAT YOU DO WHEN EZRA SAYS:
-"Workout done" → Mark it complete, note what went well, streak update
-"My [body part] hurts" → Assess, modify next session, store the info
-"I'm tired" → Scale back or focus on mobility/light work  
-"What should I do today?" → Give him the formatted workout plan
-"I missed yesterday" → No guilt trip, just get him back on track
-
-EXERCISE SELECTION LOGIC:
-- Compound movements first (squat, deadlift, press, pull)
-- Target weak points with accessories  
-- Work around limitations intelligently
-- Progress when ready: more weight, reps, or complexity
-- Regress when needed: lighter load, better form, different angle`;
+    let systemPrompt = [
+      "You are now a professional **fitness coach** who specializes in writing **clear, actionable, and realistic workout and nutrition plans** for real people.",
+      "",
+      "Your goal: make fitness simple to understand and easy to follow, even for beginners.",
+      "No jargon. No vague advice. Every answer should be **practical, specific, and measurable**.",
+      "---",
+      "## 🧠 COACHING PRINCIPLES",
+      "- Explain everything in plain English.",
+      "- Every response must include **numbers, structure, and clear instructions** (sets, reps, time, etc.).",
+      '- Never say "it depends" without explaining what it depends on.',
+      "- Be encouraging, but realistic.",
+      "- Always think safety first. If something could risk injury, say so directly.",
+      "- If missing info, ask only for the missing details — no guessing.",
+      "- Use **Markdown** for structure and spacing.",
+      '- Separate sections using "\\n\\n" (two newlines).',
+      "---",
+      "## 📋 INPUT FORMAT (what the user provides)",
+      "When the user asks for a plan, expect these fields:",
+      "**Personal Info**",
+      "- Name",
+      "- Age",
+      '- Sex (or "prefer not to say")',
+      "- Height (cm or ft)",
+      "- Weight (kg or lbs)",
+      "",
+      "**Goals & Preferences**",
+      "- Main goal (fat loss, muscle gain, strength, general fitness, etc.)",
+      "- Goal deadline (or rough timeline in weeks/months)",
+      "- Workout location (gym, home, outdoors, mixed)",
+      "- Equipment available",
+      "- Weekly availability (days and time per day)",
+      "- Injuries or limitations",
+      "- Diet type or restrictions (vegetarian, high-protein, low-carb, etc.)",
+      "- Lifestyle notes (stress, sleep, job type, energy level, etc.)",
+      "",
+      "If any field is missing, ask for it before continuing.",
+      "---",
+      "## 🧩 OUTPUT FORMAT (how every response should look)",
+      "# 1. Snapshot",
+      "Short summary of the person and their main goal.",
+      "",
+      "# 2. Key Targets",
+      "- Current stats and short-term goals (2–4 weeks)",
+      "- Long-term goal (8–12 weeks or more)",
+      "- What to track (weight, reps, photos, steps, etc.)",
+      "",
+      "# 3. Weekly Structure",
+      "Table or bullet list:",
+      "- Days per week and type of session (e.g., Strength / Cardio / Mobility)",
+      "- Duration per session",
+      "- Rest days",
+      "",
+      "# 4. Daily Workout Plans",
+      "For each training day, write a **clean, easy-to-read breakdown**:",
+      "- **Warm-up:** 3–5 min dynamic movements",
+      "- **Main workout:** list exercises, sets × reps, and how to progress",
+      "- **Accessory work:** short list for weak areas",
+      "- **Conditioning (optional):** short finisher or cardio",
+      "- **Cool-down:** 2–3 stretches or breathing work",
+      "",
+      "Keep instructions short. Example:",
+      "> Squat – 4 sets of 8 reps (use a weight that feels challenging but controllable)",
+      "",
+      "# 5. Nutrition Plan",
+      "- Estimated daily calories",
+      "- Protein / Carbs / Fats breakdown (simple, rounded numbers)",
+      "- Easy meal examples (3 meals + 1 snack)",
+      "- Hydration rule (e.g., 2.5–3L water/day)",
+      "- Adjustment rule (e.g., drop 150 kcal if no progress in 2 weeks)",
+      "",
+      "# 6. Recovery & Lifestyle",
+      "- Sleep target (hours)",
+      "- Active rest ideas",
+      "- Stress management basics",
+      "- Optional supplements (if safe and supported by evidence)",
+      "",
+      "# 7. Safety Notes",
+      "- Common form mistakes to avoid",
+      "- Red flags that need medical advice",
+      "- Exercise swaps for injuries (e.g., lunges → step-ups)",
+      "",
+      "# 8. Progress Tracking",
+      "- What to measure weekly",
+      "- How to know when to increase intensity",
+      "- How to adapt if traveling or sick",
+      "",
+      "# 9. Motivation & Coaching Tips",
+      "- One short motivational cue",
+      "- A weekly reminder for consistency",
+      "",
+      "***",
+      "## 🧱 STYLE RULES (must always follow)",
+      "- Keep tone calm, clear, and supportive.",
+      "- Avoid all jargon (no “hypertrophy,” say “muscle growth”).",
+      "- Use simple verbs like “lift,” “push,” “rest,” “stretch.”",
+      "- Always give exact numbers, not ranges like “some” or “a bit.”",
+      "- Never say “it depends” without giving specific examples.",
+      "- Make formatting look clean with clear spacing, headings, and dividers.",
+      "- Keep sentences short and punchy.",
+      "- Avoid emoji overload (max 2 per section if any).",
+      "",
+      "***",
+      "## ⚙️ EXAMPLE OUTPUT (short version)",
+      "# Snapshot",
+      "28-year-old male, 78 kg, training at home. Goal: lose fat and improve strength in 10 weeks.",
+      "***",
+      "# Key Targets",
+      "- Starting weight: 78 kg",
+      "- Target: 72 kg in 10 weeks",
+      "- Track: weight (every 3 days), steps, and weekly photos",
+      "***",
+      "# Weekly Structure",
+      "- Monday: Strength (Upper)",
+      "- Tuesday: Cardio (HIIT)",
+      "- Wednesday: Rest",
+      "- Thursday: Strength (Lower)",
+      "- Friday: Core & Mobility",
+      "- Saturday: Optional Cardio",
+      "- Sunday: Rest  ",
+      "⏱ 45–60 min per session",
+      "***",
+      "# Sample Day – Upper Strength",
+      "**Warm-up (5 min):**",
+      "Arm circles, push-ups, band rows",
+      "",
+      "**Main workout:**",
+      "- Push-up 4×12",
+      "- Dumbbell Row 4×10",
+      "- Shoulder Press 3×10",
+      "- Bicep Curl 3×12",
+      "- Plank 3×30 sec",
+      "",
+      "**Cool-down:**",
+      "Stretch chest and shoulders for 2 min",
+      "***",
+      "# Nutrition Plan",
+      "- Calories: 2100/day",
+      "- Protein: 150 g | Carbs: 200 g | Fat: 70 g",
+      "- Meals:",
+      "  - Breakfast: eggs + oats",
+      "  - Lunch: rice + chicken + salad",
+      "  - Dinner: veggies + paneer/tofu + roti",
+      "  - Snack: yogurt or nuts",
+      "- Water: 3L/day",
+      "***",
+      "# Recovery",
+      "- Sleep: 7–8 hrs",
+      "- Walk 20–30 min daily",
+      "- Foam roll legs twice a week",
+      "***",
+      "# Motivation",
+      "“Progress, not perfection. One session at a time.”",
+      "***",
+      "## 🪄 When you’re ready to start",
+      "If the user asks for a plan, ask questions to get the necessary information to build the plan.",
+    ].join("\n");
 
     if (user) {
-      systemPrompt += `
-
-EZRA'S PROFILE: ${JSON.stringify(user)}`;
+      systemPrompt += `\n\nEZRA'S PROFILE: ${JSON.stringify(user)}`;
     }
-
     if (recentWorkouts && recentWorkouts.length > 0) {
-      systemPrompt += `
-
-RECENT TRAINING:
-${recentWorkouts
-  .map(
-    (w) =>
-      `${new Date(w.date).toLocaleDateString()}: ${w.exercises
+      systemPrompt += `\n\nRECENT TRAINING:\n${recentWorkouts
         .map(
-          (e) =>
-            `${e.name} ${e.sets}x${e.reps}${
-              e.weightKg ? ` @${e.weightKg}kg` : ""
-            }`
+          (w) =>
+            `${new Date(w.date).toLocaleDateString()}: ${w.exercises
+              .map(
+                (e) =>
+                  `${e.name} ${e.sets}x${e.reps}${
+                    e.weightKg ? ` @${e.weightKg}kg` : ""
+                  }`
+              )
+              .join(", ")}`
         )
-        .join(", ")}`
-  )
-  .join("\n")}`;
+        .join("\n")}`;
     }
-
     if (workoutJustLogged) {
-      systemPrompt += `
-
-JUST FINISHED: ${workoutJustLogged.name} - ${workoutJustLogged.exercises.length} exercises`;
+      systemPrompt += `\n\nJUST FINISHED: ${workoutJustLogged.name} - ${workoutJustLogged.exercises.length} exercises`;
     }
-
     if (memories && memories.length > 0) {
-      systemPrompt += `
-
-WHAT I KNOW ABOUT EZRA:
-${memories.map((m) => `${m.content}`).join("\n")}`;
+      systemPrompt += `\n\nWHAT I KNOW ABOUT EZRA:\n${memories
+        .map((m) => `${m.content}`)
+        .join("\n")}`;
     }
-
     if (lastMessages && lastMessages.length > 0) {
-      systemPrompt += `
-
-RECENT CONVERSATION:
-${lastMessages
-  .map((m) => `${m.role === "user" ? "Ezra" : "Coach"}: ${m.content}`)
-  .join("\n")}`;
+      systemPrompt += `\n\nRECENT CONVERSATION:\n${lastMessages
+        .map((m) => `${m.role === "user" ? "Ezra" : "Coach"}: ${m.content}`)
+        .join("\n")}`;
     }
-
     if (context.streakData) {
-      systemPrompt += `
-
-STREAK INFO:
-Current: ${context.streakData.currentStreak} days
-Best ever: ${context.streakData.longestStreak} days  
-Last trained: ${
+      systemPrompt += `\n\nSTREAK INFO:\nCurrent: ${
+        context.streakData.currentStreak
+      } days\nBest ever: ${
+        context.streakData.longestStreak
+      } days  \nLast trained: ${
         context.streakData.lastWorkoutDate
           ? new Date(context.streakData.lastWorkoutDate).toLocaleDateString()
           : "Never"
@@ -276,7 +299,6 @@ Last trained: ${
     }
 
     systemPrompt += `
-
 AVAILABLE ACTIONS (execute silently):
 - {"action": "memory_add", "type": "preference|goal|pattern|injury|constraint|insight|achievement", "content": "detailed memory to store"}
 - {"action": "memory_confirm", "content": "pattern or insight detected", "confidence": 0.1-1.0}
@@ -321,67 +343,51 @@ Remember: When he asks for a workout, give him the full formatted plan. When he 
   parseActions(response) {
     const actions = [];
 
-    // Look for JSON action objects in the response
-    const actionRegex = /\{"action":\s*"[^"]+"[^}]*\}/g;
+    // Find all JSON objects that look like {"action": ...}
+    const actionRegex = /\{[\s\S]*?"action"\s*:[\s\S]*?\}/g;
     let match;
 
     while ((match = actionRegex.exec(response)) !== null) {
       try {
-        const action = JSON.parse(match[0]);
-        actions.push(action);
-      } catch (error) {
-        console.log("Failed to parse action:", match[0]);
-      }
-    }
-
-    // Also look for actions that might be on separate lines
-    const lines = response.split("\n");
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith("{") && trimmedLine.includes('"action"')) {
-        try {
-          const action = JSON.parse(trimmedLine);
-          if (
-            action.action &&
-            !actions.some((a) => JSON.stringify(a) === JSON.stringify(action))
-          ) {
-            actions.push(action);
-          }
-        } catch (error) {
-          // Not a valid JSON action, ignore
+        const candidate = match[0];
+        const jsonStr = candidate.replace(/\n/g, " ");
+        const action = JSON.parse(jsonStr);
+        if (
+          action.action &&
+          !actions.find((a) => JSON.stringify(a) === JSON.stringify(action))
+        ) {
+          actions.push(action);
         }
+      } catch (e) {
+        // Malformed JSON: ignore
       }
     }
-
     return actions;
   }
 
   cleanResponse(response) {
-    // Remove action JSON from the response text
-    let cleaned = response
-      .replace(/\{"action":\s*"[^"]+"[^}]*\}/g, "")
-      .replace(/\n\s*\n/g, "\n")
-      .trim();
+    if (!response || typeof response !== "string") return response;
 
-    // Remove any remaining JSON-like structures
+    // Remove all JSON-like action objects from the response
+    let cleaned = response.replace(/\{[\s\S]*?"action"\s*:[\s\S]*?\}/g, "");
+    // Remove excessive blank lines and surrounding whitespace
+    cleaned = cleaned.replace(/(\r?\n){3,}/g, "\n\n").trim();
+    // Remove stray braces that look like JSON
     cleaned = cleaned.replace(/\{[^}]*\}/g, "");
-
-    // Clean up any leftover formatting issues
-    cleaned = cleaned.replace(/\n\s*\n/g, "\n");
-    cleaned = cleaned.replace(/^\s*[\n\r]+/, "");
-    cleaned = cleaned.replace(/[\n\r]+\s*$/, "");
-
+    // Remove any trailing or leading blank lines
+    cleaned = cleaned.replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, "");
     return cleaned;
   }
 
   async generateEmbedding(text) {
     if (!this.embeddingModel) return null;
-
     try {
       const result = await this.embeddingModel.embedContent(text);
-      return result.embedding.values;
-    } catch (error) {
-      console.error("Error generating embedding:", error);
+      return result.embedding && result.embedding.values
+        ? result.embedding.values
+        : null;
+    } catch (e) {
+      console.error("Error generating embedding:", e);
       return null;
     }
   }
@@ -399,64 +405,66 @@ Remember: When he asks for a workout, give him the full formatted plan. When he 
 
   async getOfflineResponse(prompt, context) {
     try {
-      // Find most similar persisted response
       const responses = await GeminiResponse.find({})
         .sort({ createdAt: -1 })
         .limit(50);
-
-      if (responses.length === 0) {
+      if (!responses.length) {
         return "I'm offline right now. Check your connection and try again.";
       }
 
-      // Simple similarity based on keyword matching
-      const promptKeywords = prompt.toLowerCase().split(/\s+/);
-      let bestResponse = responses[0];
-      let bestScore = 0;
+      // Simple word matching; prefer longer matches
+      const promptWords = prompt.toLowerCase().split(/\s+/).filter(Boolean);
+      let best = responses[0],
+        bestScore = 0;
 
-      responses.forEach((response) => {
-        const responseKeywords = response.prompt.toLowerCase().split(/\s+/);
-        const commonWords = promptKeywords.filter(
-          (word) => responseKeywords.includes(word) && word.length > 3
+      for (const resp of responses) {
+        const respWords = resp.prompt
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(Boolean);
+        const shared = promptWords.filter(
+          (w) => respWords.includes(w) && w.length > 3
         );
         const score =
-          commonWords.length /
-          Math.max(promptKeywords.length, responseKeywords.length);
-
+          shared.length / Math.max(promptWords.length, respWords.length);
         if (score > bestScore) {
           bestScore = score;
-          bestResponse = response;
+          best = resp;
         }
-      });
+      }
 
       return (
-        tightenReply(this.cleanResponse(bestResponse.responseRaw)) ||
+        tightenReply(this.cleanResponse(best.responseRaw)) ||
         "I can't access my notes right now. Try again when you're connected."
       );
-    } catch (error) {
-      console.error("Error getting offline response:", error);
+    } catch (e) {
+      console.error("Error getting offline response:", e);
       return "I'm offline and can't access training data. Try again when connected.";
     }
   }
 
   isOnline() {
-    return !!(this.client && this.apiKey);
+    return !!this.client && !!this.apiKey;
   }
 
-  // Calculate cosine similarity between two vectors
   static cosineSimilarity(vecA, vecB) {
-    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
+    if (
+      !Array.isArray(vecA) ||
+      !Array.isArray(vecB) ||
+      vecA.length !== vecB.length
+    )
+      return 0;
+    let dot = 0,
+      normA = 0,
+      normB = 0;
+    for (let i = 0; i < vecA.length; ++i) {
+      dot += vecA[i] * vecB[i];
+      normA += vecA[i] ** 2;
+      normB += vecB[i] ** 2;
     }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return Math.sqrt(normA) && Math.sqrt(normB)
+      ? dot / (Math.sqrt(normA) * Math.sqrt(normB))
+      : 0;
   }
 }
 
