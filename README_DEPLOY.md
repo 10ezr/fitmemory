@@ -34,10 +34,9 @@ No `next export` is required (App Router + API Routes run on serverless function
 - The app reads `process.env.MONGODB_URI`. In production this must be set (localhost is not used in prod).
 - The connection uses retries and serverless-safe settings.
 
-## 6) Backup/Import/Export
-- Backup endpoint: `GET /api/backup`
-- Export all data: `GET /api/export`
-- Import data: `POST /api/import` with JSON body
+## 6) Database Management
+- Clear all data: `POST /api/clear-all-data` (nuclear option - deletes everything)
+- Access via Settings button in the left sidebar
 
 ## 7) Smoke Tests After Deploy
 - Open `/features` to verify services
