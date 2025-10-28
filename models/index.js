@@ -71,12 +71,30 @@ const geminiResponseSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// Streak schema for tracking daily workout streaks
+// Activity log entry schema for streak tracking
+const activityLogSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  type: {
+    type: String,
+    enum: ['workout', 'recovery', 'rest'],
+    required: true
+  },
+  data: mongoose.Schema.Types.Mixed, // Additional activity data
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Enhanced Streak schema for robust activity tracking
 const streakSchema = new mongoose.Schema({
   _id: { type: String, default: "local" },
   currentStreak: { type: Number, default: 0 },
   longestStreak: { type: Number, default: 0 },
-  lastWorkoutDate: Date,
+  lastWorkoutDate: Date, // Kept for backward compatibility
+  
+  // New activity tracking system
+  activityLog: [activityLogSchema],
+  
+  // Legacy fields (kept for compatibility)
   streakHistory: [
     {
       date: Date,
@@ -85,17 +103,25 @@ const streakSchema = new mongoose.Schema({
   ],
   workoutSchedule: {
     type: mongoose.Schema.Types.Mixed,
-    default: null, // AI-determined schedule (e.g., {frequency: 'daily', restDays: ['sunday'], intensity: 'moderate'})
+    default: null, // AI-determined schedule
   },
   missedWorkouts: { type: Number, default: 0 },
-  flexibleMode: { type: Boolean, default: true }, // Allow AI to adjust schedule
+  flexibleMode: { type: Boolean, default: true },
   aiAdjustments: [
     {
       date: Date,
-      adjustment: String, // Reason for schedule change
+      adjustment: String,
       newSchedule: mongoose.Schema.Types.Mixed,
     },
   ],
+  
+  // Notification settings
+  notifications: {
+    enabled: { type: Boolean, default: true },
+    warningHours: { type: Number, default: 2 }, // Hours before reset to warn
+    methods: [{ type: String, enum: ['browser', 'email'], default: ['browser'] }]
+  },
+  
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -107,6 +133,14 @@ const appConfigSchema = new mongoose.Schema({
   version: String,
   patterns: mongoose.Schema.Types.Mixed, // Detected workout patterns
   consistency: mongoose.Schema.Types.Mixed, // Consistency metrics
+  
+  // Streak system configuration
+  streakConfig: {
+    resetHour: { type: Number, default: 0 }, // Hour of day to reset (0 = midnight)
+    warningHours: { type: Number, default: 2 }, // Hours before reset to warn
+    graceMinutes: { type: Number, default: 0 }, // Grace period after reset time
+    allowedActivityTypes: [{ type: String, default: ['workout', 'recovery', 'rest'] }]
+  }
 });
 
 // Create models - check if already compiled to avoid OverwriteModelError
