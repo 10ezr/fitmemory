@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/database";
-import { Workout } from "@/models";
+import { Workout, Streak } from "@/models";
 import MemoryService from "@/services/memoryService";
+import { getStreakStatus } from "@/services/streakService";
 
 function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
   const analysis = {
     weak: [],
     strong: [],
     focus: null,
+    fatigue: "normal",
+    motivation: "high",
+    recovery: "good",
   };
 
+  // Analyze memories for body part strengths/weaknesses
   memories.forEach((m) => {
     const content = m.content.toLowerCase();
     if (
@@ -51,53 +56,176 @@ function analyzeStrengthsAndWeaknesses(memories, recentWorkouts) {
       if (content.includes("leg")) analysis.focus = "legs";
       if (content.includes("core")) analysis.focus = "core";
     }
+
+    // Analyze fatigue and recovery
+    if (
+      content.includes("tired") ||
+      content.includes("exhausted") ||
+      content.includes("fatigue")
+    ) {
+      analysis.fatigue = "high";
+    }
+    if (
+      content.includes("sore") ||
+      content.includes("pain") ||
+      content.includes("injury")
+    ) {
+      analysis.recovery = "poor";
+    }
+    if (
+      content.includes("energized") ||
+      content.includes("fresh") ||
+      content.includes("recovered")
+    ) {
+      analysis.recovery = "excellent";
+    }
+    if (
+      content.includes("unmotivated") ||
+      content.includes("lazy") ||
+      content.includes("skip")
+    ) {
+      analysis.motivation = "low";
+    }
   });
+
+  // Analyze recent workout patterns for fatigue
+  if (recentWorkouts.length >= 3) {
+    const last3Days = recentWorkouts.slice(0, 3);
+    const totalExercises = last3Days.reduce(
+      (sum, w) => sum + (w.exercises?.length || 0),
+      0
+    );
+    const avgExercises = totalExercises / 3;
+
+    if (avgExercises > 8) analysis.fatigue = "high";
+    if (avgExercises < 4) analysis.fatigue = "low";
+  }
 
   return analysis;
 }
 
 function buildAdaptiveWorkout(baseDay, analysis, constraints, context) {
+  // Adjust workout intensity based on analysis
+  const intensity =
+    analysis.fatigue === "high"
+      ? "light"
+      : analysis.recovery === "excellent"
+      ? "intense"
+      : "moderate";
+
+  const duration =
+    analysis.fatigue === "high" ? 25 : analysis.motivation === "low" ? 30 : 45;
+
   const workouts = {
     chest_focus: {
-      name: "Tomorrow — Chest Power Focus",
-      estimatedDuration: 40,
-      exercises: [
-        {
-          name: "Barbell Bench Press",
-          sets: 4,
-          reps: "6-8",
-          type: "strength",
-          priority: "high",
-        },
-        {
-          name: "Incline Dumbbell Press",
-          sets: 3,
-          reps: "8-10",
-          type: "strength",
-          priority: "high",
-        },
-        {
-          name: "Chest Flyes",
-          sets: 3,
-          reps: "10-12",
-          type: "accessory",
-          priority: "high",
-        },
-        {
-          name: "Push-ups (burnout)",
-          sets: 2,
-          reps: "max",
-          type: "finisher",
-          priority: "high",
-        },
-        {
-          name: "Light Back Rows",
-          sets: 2,
-          reps: "12-15",
-          type: "maintenance",
-          priority: "low",
-        },
-      ],
+      name: `Tomorrow — Chest ${
+        intensity === "intense"
+          ? "Power"
+          : intensity === "light"
+          ? "Recovery"
+          : "Strength"
+      } Focus`,
+      estimatedDuration: duration,
+      exercises:
+        intensity === "light"
+          ? [
+              {
+                name: "Incline Dumbbell Press",
+                sets: 3,
+                reps: "12-15",
+                type: "strength",
+                priority: "high",
+              },
+              {
+                name: "Chest Flyes",
+                sets: 3,
+                reps: "15-20",
+                type: "accessory",
+                priority: "high",
+              },
+              {
+                name: "Push-ups",
+                sets: 2,
+                reps: "8-12",
+                type: "finisher",
+                priority: "medium",
+              },
+            ]
+          : intensity === "intense"
+          ? [
+              {
+                name: "Barbell Bench Press",
+                sets: 5,
+                reps: "4-6",
+                type: "strength",
+                priority: "high",
+              },
+              {
+                name: "Incline Dumbbell Press",
+                sets: 4,
+                reps: "6-8",
+                type: "strength",
+                priority: "high",
+              },
+              {
+                name: "Chest Flyes",
+                sets: 4,
+                reps: "8-10",
+                type: "accessory",
+                priority: "high",
+              },
+              {
+                name: "Push-ups (burnout)",
+                sets: 3,
+                reps: "max",
+                type: "finisher",
+                priority: "high",
+              },
+              {
+                name: "Light Back Rows",
+                sets: 2,
+                reps: "12-15",
+                type: "maintenance",
+                priority: "low",
+              },
+            ]
+          : [
+              {
+                name: "Barbell Bench Press",
+                sets: 4,
+                reps: "6-8",
+                type: "strength",
+                priority: "high",
+              },
+              {
+                name: "Incline Dumbbell Press",
+                sets: 3,
+                reps: "8-10",
+                type: "strength",
+                priority: "high",
+              },
+              {
+                name: "Chest Flyes",
+                sets: 3,
+                reps: "10-12",
+                type: "accessory",
+                priority: "high",
+              },
+              {
+                name: "Push-ups (burnout)",
+                sets: 2,
+                reps: "max",
+                type: "finisher",
+                priority: "high",
+              },
+              {
+                name: "Light Back Rows",
+                sets: 2,
+                reps: "12-15",
+                type: "maintenance",
+                priority: "low",
+              },
+            ],
     },
     back_focus: {
       name: "Tomorrow — Back Development",
@@ -313,7 +441,66 @@ function buildAdaptiveWorkout(baseDay, analysis, constraints, context) {
       selectedWorkout = workouts.chest_focus;
   }
 
-  return { workout: selectedWorkout, adaptations, analysis };
+  // Add motivational messaging based on streak and analysis
+  const motivationalMessage = generateMotivationalMessage(analysis, context);
+
+  return {
+    workout: selectedWorkout,
+    adaptations,
+    analysis,
+    motivationalMessage,
+    intensity,
+    recommendations: generateRecommendations(analysis, context),
+  };
+}
+
+function generateMotivationalMessage(analysis, context) {
+  const streak = context?.streak?.currentStreak || 0;
+
+  if (analysis.motivation === "low") {
+    return "You've got this! Even a light workout counts towards your streak. Every step forward matters.";
+  }
+
+  if (streak >= 7) {
+    return `Amazing ${streak}-day streak! Keep the momentum going with this targeted workout.`;
+  }
+
+  if (analysis.fatigue === "high") {
+    return "Listen to your body. This lighter workout will help you recover while maintaining your progress.";
+  }
+
+  if (analysis.recovery === "excellent") {
+    return "You're feeling strong! Time to push yourself with this challenging workout.";
+  }
+
+  return "Ready to build on your progress? This workout is designed to help you reach your goals.";
+}
+
+function generateRecommendations(analysis, context) {
+  const recommendations = [];
+
+  if (analysis.fatigue === "high") {
+    recommendations.push("Focus on form over intensity today");
+    recommendations.push("Take longer rest periods between sets");
+  }
+
+  if (analysis.recovery === "poor") {
+    recommendations.push("Consider lighter weights or bodyweight alternatives");
+    recommendations.push("Stop if you feel any pain or discomfort");
+  }
+
+  if (analysis.motivation === "low") {
+    recommendations.push("Start with just 10 minutes - you can always do more");
+    recommendations.push("Put on your favorite music to boost energy");
+  }
+
+  if (context?.streak?.broken) {
+    recommendations.push(
+      "Today is a fresh start - focus on building a new streak"
+    );
+  }
+
+  return recommendations;
 }
 
 export async function GET() {
@@ -327,20 +514,22 @@ export async function GET() {
     let constraints = [];
     let memories = [];
     let recentWorkouts = [];
+    let streakStatus = null;
 
     try {
       const memoryService = new MemoryService();
-      const [constraintMems, injuryMems, allMems, workouts] = await Promise.all(
-        [
+      const [constraintMems, injuryMems, allMems, workouts, streak] =
+        await Promise.all([
           memoryService.getMemoriesByType("constraint", 10),
           memoryService.getMemoriesByType("injury", 10),
           memoryService.getMemoriesByType("pattern", 20),
           memoryService.getRecentWorkouts(5),
-        ]
-      );
+          getStreakStatus(),
+        ]);
       constraints = [...(constraintMems || []), ...(injuryMems || [])];
       memories = [...(allMems || []), ...constraints];
       recentWorkouts = workouts || [];
+      streakStatus = streak;
     } catch (memoryError) {
       console.log("Memory service unavailable");
     }
@@ -365,6 +554,7 @@ export async function GET() {
     const analysis = analyzeStrengthsAndWeaknesses(memories, recentWorkouts);
     const result = buildAdaptiveWorkout("upper", analysis, constraints, {
       today: todayContext,
+      streak: streakStatus,
     });
 
     return NextResponse.json({
@@ -376,9 +566,19 @@ export async function GET() {
         weakAreas: analysis.weak,
         strongAreas: analysis.strong,
         currentFocus: analysis.focus,
+        fatigue: analysis.fatigue,
+        motivation: analysis.motivation,
+        recovery: analysis.recovery,
       },
-      source: "ai-adaptive",
-      context: todayContext,
+      motivationalMessage: result.motivationalMessage,
+      intensity: result.intensity,
+      recommendations: result.recommendations,
+      source: "ai-adaptive-enhanced",
+      context: {
+        ...todayContext,
+        streak: streakStatus,
+        recentWorkoutCount: recentWorkouts.length,
+      },
     });
   } catch (err) {
     console.error("Error generating adaptive workout:", err);

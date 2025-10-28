@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +33,7 @@ export default function TomorrowSidebar() {
   const refreshTimerRef = useRef(null);
   const lastFetchedRef = useRef(0);
 
-  const fetchPlan = async () => {
+  const fetchPlan = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -46,9 +46,9 @@ export default function TomorrowSidebar() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchMonth = async () => {
+  const fetchMonth = useCallback(async () => {
     try {
       setMonthLoading(true);
       const res = await fetch(`/api/month-streak?ts=${Date.now()}`, {
@@ -61,9 +61,9 @@ export default function TomorrowSidebar() {
     } finally {
       setMonthLoading(false);
     }
-  };
+  }, [monthData]);
 
-  const fetchGoals = async () => {
+  const fetchGoals = useCallback(async () => {
     try {
       setGoalsLoading(true);
       const res = await fetch(`/api/goals?ts=${Date.now()}`, {
@@ -76,44 +76,47 @@ export default function TomorrowSidebar() {
     } finally {
       setGoalsLoading(false);
     }
-  };
+  }, [goals]);
 
-  const setGoalTarget = async (targetDays) => {
-    try {
-      setSavingGoal(true);
-      // Optimistic UI update
-      setGoals((prev) => {
-        const current = prev?.progress?.current || 0;
-        return {
-          goals: {
-            ...(prev?.goals || {}),
-            type: "streak",
-            targetDays,
-            active: true,
-          },
-          progress: {
-            current,
-            target: targetDays,
-            progressPct: Math.max(
-              0,
-              Math.min(100, Math.round((current / targetDays) * 100))
-            ),
-          },
-        };
-      });
-      await fetch("/api/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "streak", targetDays, active: true }),
-      });
-      await fetchGoals();
-    } finally {
-      setSavingGoal(false);
-    }
-  };
+  const setGoalTarget = useCallback(
+    async (targetDays) => {
+      try {
+        setSavingGoal(true);
+        // Optimistic UI update
+        setGoals((prev) => {
+          const current = prev?.progress?.current || 0;
+          return {
+            goals: {
+              ...(prev?.goals || {}),
+              type: "streak",
+              targetDays,
+              active: true,
+            },
+            progress: {
+              current,
+              target: targetDays,
+              progressPct: Math.max(
+                0,
+                Math.min(100, Math.round((current / targetDays) * 100))
+              ),
+            },
+          };
+        });
+        await fetch("/api/goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "streak", targetDays, active: true }),
+        });
+        await fetchGoals();
+      } finally {
+        setSavingGoal(false);
+      }
+    },
+    [fetchGoals]
+  );
 
   // Kept for backward compatibility with warning UX (optional toast before midnight)
-  const scheduleWarning = (warningAtISO) => {
+  const scheduleWarning = useCallback((warningAtISO) => {
     try {
       if (warningTimerRef.current) {
         clearTimeout(warningTimerRef.current);
@@ -129,7 +132,7 @@ export default function TomorrowSidebar() {
         warningTimerRef.current = setTimeout(() => triggerWarning(), ms);
       }
     } catch {}
-  };
+  }, []);
 
   const triggerWarning = () => {
     try {
@@ -158,7 +161,7 @@ export default function TomorrowSidebar() {
   };
 
   // Throttled refresh triggered by realtime events
-  const scheduleRefresh = () => {
+  const scheduleRefresh = useCallback(() => {
     const now = Date.now();
     if (now - lastFetchedRef.current < 800) return; // throttle 0.8s
     lastFetchedRef.current = now;
@@ -167,7 +170,7 @@ export default function TomorrowSidebar() {
       refreshTimerRef.current = null;
       await Promise.all([fetchMonth(), fetchGoals()]);
     }, 250);
-  };
+  }, [fetchMonth, fetchGoals]);
 
   useEffect(() => {
     fetchPlan();
@@ -212,30 +215,33 @@ export default function TomorrowSidebar() {
         refreshTimerRef.current = null;
       }
     };
-  }, []);
+  }, [fetchPlan, fetchMonth, fetchGoals, scheduleRefresh, scheduleWarning]);
 
   const monthName = monthData?.month || "";
   const year = monthData?.year || "";
-  const days = monthData?.days || [];
+  const days = useMemo(() => monthData?.days || [], [monthData?.days]);
 
   const goalProgressPct = goals?.progress?.progressPct || 0;
   const goalCurrent = goals?.progress?.current || 0;
   const goalTarget = goals?.progress?.target || 30;
 
   // Build calendar grid with weekday headers and leading blanks
-  const weekDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const firstOfMonth = new Date();
-  firstOfMonth.setDate(1);
-  firstOfMonth.setHours(0, 0, 0, 0);
-  const firstWeekday = firstOfMonth.getDay(); // 0=Sun
-  const leadingBlanks = Array.from({ length: firstWeekday }, () => ({
-    blank: true,
-  }));
-  const calendarCells = [
-    ...leadingBlanks,
-    ...days.map((d) => ({ ...d, blank: false })),
-  ];
+  const weekDayLabels = useMemo(
+    () => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    []
+  );
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const calendarCells = useMemo(() => {
+    const firstOfMonth = new Date();
+    firstOfMonth.setDate(1);
+    firstOfMonth.setHours(0, 0, 0, 0);
+    const firstWeekday = firstOfMonth.getDay(); // 0=Sun
+    const leadingBlanks = Array.from({ length: firstWeekday }, () => ({
+      blank: true,
+    }));
+    return [...leadingBlanks, ...days.map((d) => ({ ...d, blank: false }))];
+  }, [days]);
 
   return (
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">

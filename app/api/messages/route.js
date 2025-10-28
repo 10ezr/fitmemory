@@ -6,9 +6,9 @@ export async function GET(request) {
   try {
     await connectDatabase();
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit")) || 50;
-    const skip = parseInt(searchParams.get("skip")) || 0;
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get("limit")) || 50;
+    const skip = parseInt(url.searchParams.get("skip")) || 0;
 
     const messages = await Message.find({})
       .sort({ createdAt: -1 })

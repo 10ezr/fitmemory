@@ -1,4 +1,5 @@
 import { Workout, AppConfig, Streak } from "@/models/index.js";
+import { getStreakStatus } from "./streakService.js";
 
 class AnalyticsService {
   constructor() {
@@ -56,8 +57,9 @@ class AnalyticsService {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      // Calculate daily streak
-      const dailyStreak = await this.calculateDailyStreak(today);
+      // Get unified streak status
+      const streakStatus = await getStreakStatus();
+      const dailyStreak = streakStatus.currentStreak || 0;
 
       // Calculate weekly counts for last 4 weeks
       const weeklyCounts = await this.calculateWeeklyCounts(today);
@@ -71,6 +73,11 @@ class AnalyticsService {
 
       const metrics = {
         dailyStreak,
+        longestStreak: streakStatus.longestStreak || 0,
+        lastWorkoutDate: streakStatus.lastWorkoutDate,
+        missedWorkouts: streakStatus.missedWorkouts || 0,
+        daysSinceLastWorkout: streakStatus.daysSinceLastWorkout,
+        broken: streakStatus.broken || false,
         weeklyCounts,
         rollingAverage: Math.round(rollingAverage * 10) / 10,
         trend,
@@ -87,16 +94,6 @@ class AnalyticsService {
     } catch (error) {
       console.error("Error calculating consistency metrics:", error);
       throw error;
-    }
-  }
-
-  async calculateDailyStreak(today) {
-    try {
-      const streak = await Streak.findById("local");
-      return streak ? streak.currentStreak : 0;
-    } catch (error) {
-      console.error("Error getting streak from database:", error);
-      return 0;
     }
   }
 
