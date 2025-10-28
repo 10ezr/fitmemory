@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDatabase from "@/lib/database";
 import { Streak, Workout } from "@/models";
+import { registerWorkout, getStreakStatus } from "@/services/streakService";
 
 function dayKey(d) {
   const dt = new Date(d);
@@ -20,47 +21,86 @@ export async function GET() {
     const windowStart = new Date(today);
     windowStart.setDate(today.getDate() - 29);
 
+    // Get workouts from database
     const workouts = await Workout.find({
       date: { $gte: windowStart, $lte: today },
     })
       .select("date")
       .lean();
-    const worked = new Set(workouts.map((w) => dayKey(w.date)));
+    const workedDays = new Set(workouts.map((w) => dayKey(w.date)));
+
+    // Get streak status for activity tracking
+    const streakStatus = await getStreakStatus();
+    const activityDays = new Set();
+    
+    // Add days with any activity (workout, recovery, rest) to activity set
+    if (streakStatus.recentActivities) {
+      streakStatus.recentActivities.forEach(activity => {
+        const activityDate = new Date(activity.date);
+        if (activityDate >= windowStart && activityDate <= today) {
+          activityDays.add(dayKey(activity.date));
+        }
+      });
+    }
 
     const challengeData = [];
-    let consecutive = 0;
+    let consecutiveWorkouts = 0;
+    let consecutiveActivity = 0;
+    
     for (let i = 29; i >= 0; i--) {
       const day = new Date(today);
       day.setDate(today.getDate() - i);
       const key = dayKey(day);
-      const completed = worked.has(key);
+      const hasWorkout = workedDays.has(key);
+      const hasActivity = activityDays.has(key);
+      
       challengeData.push({
         date: key,
         dayNum: day.getDate(),
-        completed,
+        completed: hasWorkout, // Workout completion for 30-day challenge
+        hasActivity: hasActivity, // Any activity (workout/recovery/rest)
         isToday: i === 0,
       });
     }
 
+    // Calculate consecutive streaks
     for (const d of challengeData) {
-      if (d.completed) consecutive += 1;
-      else consecutive = 0;
+      if (d.completed) consecutiveWorkouts += 1;
+      else consecutiveWorkouts = 0;
+      
+      if (d.hasActivity) consecutiveActivity += 1;
+      else consecutiveActivity = 0;
     }
 
     const completedDays = challengeData.filter((d) => d.completed).length;
+    const activeDays = challengeData.filter((d) => d.hasActivity).length;
     const progressPercentage = Math.round((completedDays / 30) * 100);
+    const activityPercentage = Math.round((activeDays / 30) * 100);
 
+    // Reset and warning times
     const nextMidnight = new Date(today);
     nextMidnight.setDate(today.getDate() + 1);
     const warnAt = new Date(nextMidnight.getTime() - 2 * 60 * 60 * 1000);
 
     return NextResponse.json({
       challengeData,
-      consecutive,
+      
+      // 30-day challenge metrics (workout-focused)
+      consecutive: consecutiveWorkouts,
       completedDays,
       totalDays: 30,
       progressPercentage,
-      isCompleted: consecutive >= 30,
+      isCompleted: consecutiveWorkouts >= 30,
+      
+      // Activity streak metrics (includes recovery days)
+      consecutiveActivity,
+      activeDays,
+      activityPercentage,
+      currentStreak: streakStatus.currentStreak,
+      longestStreak: streakStatus.longestStreak,
+      needsActivity: streakStatus.needsActivity,
+      
+      // Timing
       warningAtISO: warnAt.toISOString(),
       resetAtISO: nextMidnight.toISOString(),
     });
@@ -73,6 +113,12 @@ export async function GET() {
       totalDays: 30,
       progressPercentage: 0,
       isCompleted: false,
+      consecutiveActivity: 0,
+      activeDays: 0,
+      activityPercentage: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      needsActivity: true,
       warningAtISO: null,
       resetAtISO: null,
     });
@@ -89,6 +135,7 @@ export async function POST() {
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Create or find today's workout
     let workout = await Workout.findOne({
       date: { $gte: startOfDay, $lte: endOfDay },
     });
@@ -100,33 +147,20 @@ export async function POST() {
       });
     }
 
-    let streak = await Streak.findById("local");
-    if (!streak) streak = new Streak({ _id: "local" });
-
-    const lastKey = streak.lastWorkoutDate
-      ? dayKey(streak.lastWorkoutDate)
-      : null;
-    const todayKey = dayKey(now);
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yKey = dayKey(yesterday);
-
-    if (lastKey === todayKey) {
-    } else if (lastKey === yKey) {
-      streak.currentStreak += 1;
-    } else {
-      streak.currentStreak = 1;
-    }
-    if (streak.currentStreak > streak.longestStreak)
-      streak.longestStreak = streak.currentStreak;
-    streak.lastWorkoutDate = now;
-    streak.streakHistory.push({ date: now, streak: streak.currentStreak });
-    await streak.save();
+    // Register workout activity using new unified system
+    const streakResult = await registerWorkout({
+      workoutId: workout._id,
+      challengeWorkout: true,
+      name: workout.name
+    });
 
     return NextResponse.json({
       ok: true,
       workoutId: workout._id,
-      currentStreak: streak.currentStreak,
+      currentStreak: streakResult.currentStreak,
+      longestStreak: streakResult.longestStreak,
+      activityRegistered: true,
+      streakActive: true
     });
   } catch (e) {
     console.error("challenge-30-advanced POST error", e);
