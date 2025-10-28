@@ -15,7 +15,8 @@
     "test:ai": "node scripts/test-ai-response.js",
     "test:complete": "node scripts/test-complete.js",
     "test:db": "node scripts/test-db-connection.js",
-    "test:all": "node scripts/test-all.js"
+    "test:all": "node scripts/test-all.js",
+    "validate:env": "node scripts/validate-env.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.2.1",

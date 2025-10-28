@@ -45,7 +45,7 @@ cp .env.example .env.local
 
 Edit `.env.local`:
 ```
-MONGODB_URI=mongodb://localhost:27017/fitmemory
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/fitmemory?retryWrites=true&w=majority
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 

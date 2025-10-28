@@ -17,14 +17,16 @@ Optional:
 ## 3) Local Development
 ```bash
 pnpm i   # or npm i / yarn
+pnpm validate:env  # validate environment variables
 pnpm dev # runs next dev
 ```
 
 ## 4) GitHub → Vercel
-1. Push your code to GitHub (main branch)
-2. In Vercel, import the repository
-3. Set the Environment Variables listed above
-4. Deploy
+1. Clear build cache: `rm -rf .next` (or delete .next folder)
+2. Push your code to GitHub (main branch)
+3. In Vercel, import the repository
+4. Set the Environment Variables listed above
+5. Deploy
 
 No `next export` is required (App Router + API Routes run on serverless functions).
 
