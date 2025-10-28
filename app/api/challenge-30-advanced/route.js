@@ -12,6 +12,20 @@ function dayKey(d) {
   return `${y}-${m}-${da}`;
 }
 
+async function getTomorrowPlan() {
+  // Call the existing tomorrow-workout API logic via internal fetch to avoid duplicating code
+  try {
+    // In Next.js route handlers, we don't have absolute URL; compute relative fetch using NEXT_PUBLIC_SITE_URL if available
+    const base = process.env.NEXT_PUBLIC_SITE_URL || "";
+    const res = await fetch(`${base}/api/tomorrow-workout`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to fetch tomorrow workout inline:", e);
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     await connectDatabase();
@@ -101,8 +115,10 @@ export async function POST() {
       });
     }
 
-    // FIXED: Use the new incrementStreak function
     const streakResult = await incrementStreak();
+
+    // NEW: get fresh tomorrow plan immediately
+    const tomorrowPlan = await getTomorrowPlan();
 
     return NextResponse.json({
       ok: true,
@@ -110,6 +126,7 @@ export async function POST() {
       currentStreak: streakResult.streak.currentStreak,
       longestStreak: streakResult.streak.longestStreak,
       alreadyDoneToday: streakResult.alreadyDoneToday,
+      tomorrowPlan, // client can update right panel immediately
     });
   } catch (e) {
     console.error("challenge-30-advanced POST error", e);
