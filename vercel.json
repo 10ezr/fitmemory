@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/**": {
+      "memory": 256,
+      "maxDuration": 10
+    }
+  },
+  "installCommand": "pnpm install || npm install",
+  "buildCommand": "pnpm build || npm run build",
+  "framework": "nextjs",
+  "regions": ["iad", "cle1", "cdg1"],
+  "ignoreCommand": "echo Using default Vercel ignore"
+}
