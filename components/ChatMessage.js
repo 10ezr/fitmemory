@@ -8,7 +8,10 @@ function renderMarkdown(md) {
   if (typeof md !== "string") return md;
 
   // Normalize Windows line endings and trim excessive blank lines
-  md = md.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  md = md
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
   const lines = md.split(/\n/);
   const out = [];
@@ -25,11 +28,14 @@ function renderMarkdown(md) {
       // italic *text*
       .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
       // inline code `code`
-      .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-muted font-mono text-[0.9em]">$1</code>');
+      .replace(
+        /`([^`]+)`/g,
+        '<code class="px-1 py-0.5 rounded bg-muted font-mono text-[0.9em]">$1</code>'
+      );
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
-  const renderList = (items, ordered) => (
+  const renderList = (items, ordered) =>
     ordered ? (
       <ol className="list-decimal ml-5 space-y-1">
         {items.map((it, idx) => (
@@ -42,8 +48,7 @@ function renderMarkdown(md) {
           <li key={idx}>{renderInline(it)}</li>
         ))}
       </ul>
-    )
-  );
+    );
 
   const renderTable = (headerLine, alignLine, rowLines) => {
     const headers = headerLine
@@ -52,8 +57,21 @@ function renderMarkdown(md) {
       .filter(Boolean);
     const aligns = (alignLine || "")
       .split("|")
-      .map((s) => (s.includes(":-") && s.includes("-:") ? "center" : s.startsWith(":-") ? "left" : s.endsWith("-:") ? "right" : "left"));
-    const rows = rowLines.map((r) => r.split("|").map((s) => s.trim()).filter(Boolean));
+      .map((s) =>
+        s.includes(":-") && s.includes("-:")
+          ? "center"
+          : s.startsWith(":-")
+          ? "left"
+          : s.endsWith("-:")
+          ? "right"
+          : "left"
+      );
+    const rows = rowLines.map((r) =>
+      r
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
 
     return (
       <div className="overflow-x-auto">
@@ -61,7 +79,12 @@ function renderMarkdown(md) {
           <thead>
             <tr>
               {headers.map((h, i) => (
-                <th key={i} className="border-b px-3 py-2 text-left font-semibold">{h}</th>
+                <th
+                  key={i}
+                  className="border-b px-3 py-2 text-left font-semibold"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
@@ -69,7 +92,9 @@ function renderMarkdown(md) {
             {rows.map((cells, rIdx) => (
               <tr key={rIdx} className="border-b last:border-b-0">
                 {cells.map((c, cIdx) => (
-                  <td key={cIdx} className="px-3 py-2 align-top">{renderInline(c)}</td>
+                  <td key={cIdx} className="px-3 py-2 align-top">
+                    {renderInline(c)}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -88,7 +113,15 @@ function renderMarkdown(md) {
       const level = h[1].length;
       const text = h[2];
       push(
-        <div key={`h-${i}`} className={cn("font-semibold mt-3 mb-2", level === 1 ? "text-xl" : level === 2 ? "text-lg" : "text-base")}>{renderInline(text)}</div>
+        <div
+          key={`h-${i}`}
+          className={cn(
+            "font-semibold mt-3 mb-2",
+            level === 1 ? "text-xl" : level === 2 ? "text-lg" : "text-base"
+          )}
+        >
+          {renderInline(text)}
+        </div>
       );
       i++;
       continue;
@@ -102,9 +135,14 @@ function renderMarkdown(md) {
         i++;
       }
       push(
-        <blockquote key={`q-${i}`} className="border-l-4 border-primary/40 pl-3 italic text-muted-foreground my-3">
+        <blockquote
+          key={`q-${i}`}
+          className="border-l-4 border-primary/40 pl-3 italic text-muted-foreground my-3"
+        >
           {quoteLines.map((ql, idx) => (
-            <p key={idx} className="mb-1 last:mb-0">{renderInline(ql)}</p>
+            <p key={idx} className="mb-1 last:mb-0">
+              {renderInline(ql)}
+            </p>
           ))}
         </blockquote>
       );
@@ -122,7 +160,10 @@ function renderMarkdown(md) {
       }
       i++; // skip closing ```
       push(
-        <pre key={`pre-${i}`} className="bg-neutral-900/70 border border-border/50 rounded p-3 overflow-x-auto text-xs">
+        <pre
+          key={`pre-${i}`}
+          className="bg-neutral-900/70 border border-border/50 rounded p-3 overflow-x-auto text-xs"
+        >
           <code className="font-mono whitespace-pre">{code.join("\n")}</code>
         </pre>
       );
@@ -130,7 +171,11 @@ function renderMarkdown(md) {
     }
 
     // table header |a|b|
-    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?[-]+:?\s*(\|\s*:?[-]+:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+    if (
+      /^\s*\|.*\|\s*$/.test(line) &&
+      i + 1 < lines.length &&
+      /^\s*\|?\s*:?[-]+:?\s*(\|\s*:?[-]+:?\s*)+\|?\s*$/.test(lines[i + 1])
+    ) {
       const header = line.replace(/^\||\|$/g, "");
       const align = lines[i + 1].replace(/^\||\|$/g, "");
       i += 2;
@@ -173,7 +218,11 @@ function renderMarkdown(md) {
     }
 
     // paragraph
-    push(<p key={`p-${i}`} className="mb-2">{renderInline(line)}</p>);
+    push(
+      <p key={`p-${i}`} className="">
+        {renderInline(line)}
+      </p>
+    );
     i++;
   }
 
@@ -193,18 +242,25 @@ export default function ChatMessage({ message }) {
       className={cn("flex", isUser ? "justify-end" : "justify-start")}
     >
       <div className="max-w-3xl">
-        <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>          
+        <div
+          className={cn("flex flex-col", isUser ? "items-end" : "items-start")}
+        >
           <Card
             className={cn(
               "transition-all duration-200",
               isUser && "bg-primary text-primary-foreground border-primary/20",
-              isAssistant && "bg-neutral-800 border-border/50 hover:border-border prose prose-sm max-w-none dark:prose-invert",
+              isAssistant &&
+                "bg-neutral-800 border-border/50 hover:border-border prose prose-sm max-w-none dark:prose-invert",
               isSystem && "bg-muted/50 text-muted-foreground border-muted"
             )}
           >
-            <CardContent className={cn("p-4", isSystem && "text-center italic")}>
-              <div className={cn("text-sm leading-relaxed space-y-1.5")}>                
-                {isAssistant ? renderMarkdown(message.content) : renderMarkdown(String(message.content || ""))}
+            <CardContent
+              className={cn("py-2 px-4", isSystem && "text-center italic")}
+            >
+              <div className={cn("text-sm leading-relaxed space-y-1.5")}>
+                {isAssistant
+                  ? renderMarkdown(message.content)
+                  : renderMarkdown(String(message.content || ""))}
               </div>
 
               {message.exerciseImages && message.exerciseImages.length > 0 && (
@@ -212,8 +268,15 @@ export default function ChatMessage({ message }) {
                   {message.exerciseImages.map((image, index) => (
                     <Card key={index} className="w-20 h-20 overflow-hidden">
                       <div className="relative w-full h-full">
-                        <Image src={image.url} alt={image.name} fill className="object-cover" />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">{image.name}</div>
+                        <Image
+                          src={image.url}
+                          alt={image.name}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
+                          {image.name}
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -223,7 +286,10 @@ export default function ChatMessage({ message }) {
           </Card>
 
           <div className="text-xs text-muted-foreground mt-2 px-1">
-            {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {new Date(message.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </div>
         </div>
       </div>
