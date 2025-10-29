@@ -59,7 +59,6 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
     const now = new Date();
     setCurrentTime(now);
 
-    // align to next minute
     const msToNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
     let intervalId;
     const timeoutId = setTimeout(() => {
@@ -94,13 +93,29 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
 
   const currentStreak = useMemo(() => Number(current.dailyStreak || 0), [current.dailyStreak]);
   const totalWorkouts = useMemo(() => Number(current.totalWorkouts || 0), [current.totalWorkouts]);
+
+  // Stable dependency derived from weeklyCounts to satisfy lint without complex expressions
+  const weeklyCountsKey = Array.isArray(current.weeklyCounts) ? current.weeklyCounts.join(",") : "";
   const weeklyCount = useMemo(() => {
     const wc = current.weeklyCounts;
     if (!Array.isArray(wc)) return 0;
     let sum = 0;
     for (let i = 0; i < wc.length; i++) sum += wc[i] || 0;
     return sum;
-  }, [Array.isArray(current.weeklyCounts) ? current.weeklyCounts.join(",") : ""]);
+  }, [weeklyCountsKey]);
+
+  const hourKey = mounted ? currentTime.getHours() : 0;
+  const minuteKey = mounted ? currentTime.getMinutes() : 0;
+  const countdown = useMemo(() => {
+    const now = currentTime || new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const diff = Math.max(0, tomorrow.getTime() - now.getTime());
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return { hours, minutes };
+  }, [hourKey, minuteKey]);
 
   const formatTime = (date) =>
     date.toLocaleTimeString("en-US", {
@@ -115,18 +130,6 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
       month: "long",
       day: "numeric",
     });
-
-  // countdown – recompute on minute change only
-  const countdown = useMemo(() => {
-    const now = currentTime || new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const diff = Math.max(0, tomorrow.getTime() - now.getTime());
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return { hours, minutes };
-  }, [mounted ? currentTime.getHours() : 0, mounted ? currentTime.getMinutes() : 0]);
 
   return (
     <Sidebar side="left" className="border-r border-neutral-900/10 dark:border-neutral-900" collapsible="icon">
@@ -203,7 +206,7 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
                         {[
                           { label: "Hours", value: countdown.hours },
                           { label: "Minutes", value: countdown.minutes },
-                          { label: "Seconds", value: 0 }, // fixed 00 to avoid per-second rerenders
+                          { label: "Seconds", value: 0 },
                         ].map((b) => (
                           <div key={b.label} className="bg-card/50 border border-neutral-900/10 dark:border-neutral-900 rounded-lg p-3 text-center">
                             <div className="text-xl font-bold text-primary font-mono">{String(b.value).padStart(2, "0")}</div>
@@ -232,12 +235,9 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
                 </div>
               </div>
             ) : (
-              // Collapsed view
               <div className="flex flex-col items-center space-y-4 pt-6">
                 <div className="w-12 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-sm font-mono" suppressHydrationWarning>
-                  {mounted && currentTime
-                    ? currentTime.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
-                    : "--:--"}
+                  {mounted && currentTime ? currentTime.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : "--:--"}
                 </div>
               </div>
             )}
