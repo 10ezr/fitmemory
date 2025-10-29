@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
   Clock,
@@ -12,6 +13,8 @@ import {
   CheckCircle2,
   Circle,
   Calendar as CalendarIcon,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import realTimeSync from "@/app/services/realTimeSync";
 
@@ -19,6 +22,8 @@ export default function TomorrowSidebar() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
 
   // Streak + Calendar state
   const [monthLoading, setMonthLoading] = useState(true);
@@ -34,22 +39,67 @@ export default function TomorrowSidebar() {
   const monthFetchInFlight = useRef(false);
   const goalsFetchInFlight = useRef(false);
   const planFetchInFlight = useRef(false);
+  const retryCountRef = useRef(0);
 
-  const fetchPlan = useCallback(async (bg = false) => {
+  const fetchPlan = useCallback(async (bg = false, forceRefresh = false) => {
     try {
-      if (planFetchInFlight.current) return;
+      if (planFetchInFlight.current && !forceRefresh) return;
       planFetchInFlight.current = true;
+      
       if (!bg) setLoading(true);
       setError(null);
-      // Prefer AI endpoint, fallback to legacy
-      let res = await fetch("/api/tomorrow-workout-ai", { cache: "no-store" });
-      if (!res.ok)
-        res = await fetch("/api/tomorrow-workout", { cache: "no-store" });
+      
+      console.log("[TomorrowSidebar] Fetching plan, force:", forceRefresh);
+      
+      // Use POST for force refresh, GET for normal fetch
+      const method = forceRefresh ? "POST" : "GET";
+      const url = "/api/tomorrow-workout-ai";
+      
+      let res;
+      try {
+        res = await fetch(url, { 
+          method,
+          cache: "no-store",
+          headers: forceRefresh ? { "Content-Type": "application/json" } : {}
+        });
+      } catch (fetchError) {
+        console.error("[TomorrowSidebar] Network error:", fetchError);
+        throw new Error("Network connection failed");
+      }
+      
       const json = await res.json();
-      if (res.ok) setData(json);
-      else setError(json.error || "Failed to load");
+      
+      if (res.ok) {
+        console.log("[TomorrowSidebar] Plan fetched successfully:", {
+          source: json.source,
+          dayName: json.dayName,
+          exerciseCount: json.workout?.exercises?.length || 0
+        });
+        
+        setData(json);
+        setLastRefresh(new Date());
+        retryCountRef.current = 0;
+      } else {
+        console.error("[TomorrowSidebar] API error:", json);
+        const errorMsg = json.error || "Failed to load workout plan";
+        
+        // Show debug info for parsing errors
+        if (json.debug) {
+          console.log("[TomorrowSidebar] Debug info:", json.debug);
+        }
+        
+        setError(errorMsg);
+        
+        // Auto-retry for certain errors
+        if (errorMsg.includes("parse") && retryCountRef.current < 2) {
+          retryCountRef.current++;
+          console.log(`[TomorrowSidebar] Retrying parse error (${retryCountRef.current}/2)`);
+          setTimeout(() => fetchPlan(true, true), 2000);
+        }
+      }
     } catch (e) {
-      setError(e.message);
+      console.error("[TomorrowSidebar] Fetch error:", e);
+      setError(e.message || "Failed to load workout plan");
     } finally {
       planFetchInFlight.current = false;
       if (!bg) setLoading(false);
@@ -68,6 +118,8 @@ export default function TomorrowSidebar() {
         const json = await res.json();
         if (JSON.stringify(json) !== JSON.stringify(monthData))
           setMonthData(json);
+      } catch (e) {
+        console.error("[TomorrowSidebar] Month fetch error:", e);
       } finally {
         monthFetchInFlight.current = false;
         if (!bg) setMonthLoading(false);
@@ -87,6 +139,8 @@ export default function TomorrowSidebar() {
         });
         const json = await res.json();
         if (JSON.stringify(json) !== JSON.stringify(goals)) setGoals(json);
+      } catch (e) {
+        console.error("[TomorrowSidebar] Goals fetch error:", e);
       } finally {
         goalsFetchInFlight.current = false;
         if (!bg) setGoalsLoading(false);
@@ -132,6 +186,15 @@ export default function TomorrowSidebar() {
     [fetchGoals]
   );
 
+  const handleManualRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchPlan(false, true);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchPlan]);
+
   const scheduleWarning = useCallback((warningAtISO) => {
     try {
       if (warningTimerRef.current) {
@@ -149,13 +212,15 @@ export default function TomorrowSidebar() {
             Notification.permission === "granted"
           ) {
             new Notification("Streak at risk", {
-              body: "2 hours until reset. Don’t lose your streak!",
+              body: "2 hours until reset. Don't lose your streak!",
               icon: "/icon-192x192.png",
             });
           }
         }, ms);
       }
-    } catch {}
+    } catch (e) {
+      console.error("[TomorrowSidebar] Warning schedule error:", e);
+    }
   }, []);
 
   const scheduleRefresh = useCallback(() => {
@@ -170,14 +235,18 @@ export default function TomorrowSidebar() {
   }, [fetchPlan, fetchMonth, fetchGoals]);
 
   useEffect(() => {
+    // Initial load
     fetchPlan();
     fetchMonth();
     fetchGoals();
+    
+    // Set up warning notification
     const nextMidnight = new Date();
     nextMidnight.setHours(24, 0, 0, 0);
     const warnAt = new Date(nextMidnight.getTime() - 2 * 60 * 60 * 1000);
     scheduleWarning(warnAt.toISOString());
 
+    // Subscribe to real-time updates
     const unsubStats = realTimeSync.subscribe(
       "stats",
       scheduleRefresh,
@@ -190,7 +259,10 @@ export default function TomorrowSidebar() {
     );
     const unsubWorkout = realTimeSync.subscribe?.(
       "workout-completed",
-      scheduleRefresh,
+      () => {
+        console.log("[TomorrowSidebar] Workout completed, refreshing plan");
+        scheduleRefresh();
+      },
       "TomorrowSidebar"
     );
 
@@ -241,16 +313,49 @@ export default function TomorrowSidebar() {
     ];
   }, [days]);
 
+  // Format tomorrow's date nicely
+  const tomorrowDate = useMemo(() => {
+    if (!data?.dayName) return "Tomorrow";
+    const date = new Date(data.date);
+    return `${data.dayName}, ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  }, [data]);
+
   return (
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">
       <div className="p-4 space-y-4 h-[100svh] overflow-y-auto scrollbar-hide">
         {/* Tomorrow's Workout (AI) */}
         <Card className="border bg-neutral-900/90 border-neutral-900/10 dark:border-neutral-900">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" /> Tomorrow&apos;s
-              Workout
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                <span className="text-sm">Tomorrow's Workout</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {lastRefresh && (
+                  <span className="text-xs text-muted-foreground">
+                    {lastRefresh.toLocaleTimeString('en-US', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  disabled={refreshing || loading}
+                  className="h-6 w-6 p-0"
+                >
+                  <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </CardTitle>
+            {data?.dayName && (
+              <div className="text-xs text-muted-foreground">
+                {tomorrowDate}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -264,41 +369,77 @@ export default function TomorrowSidebar() {
                 </div>
               </div>
             ) : error ? (
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">Error: {error}</span>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">Error: {error}</span>
+                </div>
+                {error.includes("parse") && (
+                  <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+                    <AlertTriangle className="h-3 w-3 inline mr-1" />
+                    AI response parsing failed. This usually resolves with a refresh.
+                  </div>
+                )}
+                <Button
+                  onClick={handleManualRefresh}
+                  disabled={refreshing}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  {refreshing ? (
+                    <><RefreshCw className="h-3 w-3 mr-2 animate-spin" />Retrying...</>
+                  ) : (
+                    <>Try Again</>
+                  )}
+                </Button>
               </div>
-            ) : !data ? (
+            ) : !data?.workout ? (
               <div className="text-center py-4">
                 <div className="text-muted-foreground text-sm">
-                  No data received
+                  No workout data available
                 </div>
+                <Button
+                  onClick={handleManualRefresh}
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                >
+                  Load Workout
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
                 <div>
                   <h3 className="font-medium text-foreground mb-2">
-                    {data.workout?.name}
+                    {data.workout.name}
                   </h3>
                   <div className="flex items-center gap-2 mb-3">
                     <Badge
                       variant="secondary"
                       className="flex items-center gap-1"
                     >
-                      <Clock className="h-3 w-3" />{" "}
-                      {data.workout?.estimatedDuration} min
+                      <Clock className="h-3 w-3" />
+                      {data.workout.estimatedDuration} min
                     </Badge>
+                    {data.source && (
+                      <Badge variant="outline" className="text-xs">
+                        {data.source === 'ai-generated' ? 'Fresh AI' : 
+                         data.source === 'cache' ? 'Cached' :
+                         data.source === 'context-stable' ? 'Stable' : data.source}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">
-                    Exercises
+                    Exercises ({data.workout.exercises?.length || 0})
                   </h4>
                   <div className="space-y-1">
-                    {(data.workout?.exercises || []).map((ex, i) => (
+                    {(data.workout.exercises || []).map((ex, i) => (
                       <div
                         key={i}
-                        className="flex  items-center justify-between p-2 rounded-md bg-muted/50"
+                        className="flex items-center justify-between p-2 rounded-md bg-muted/50"
                       >
                         <span className="text-sm font-medium">{ex.name}</span>
                         <Badge variant="outline" className="text-xs">
