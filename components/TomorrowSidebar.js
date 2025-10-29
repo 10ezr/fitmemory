@@ -86,6 +86,7 @@ export default function TomorrowSidebar() {
         });
       } catch (fetchError) {
         if (fetchError?.name === "AbortError") return; // aborted due to a newer call
+        // eslint-disable-next-line no-console
         console.error("[TomorrowSidebar] Network error:", fetchError);
         throw new Error("Network connection failed");
       }
@@ -111,6 +112,7 @@ export default function TomorrowSidebar() {
       }
     } catch (e) {
       if (e?.name !== "AbortError") {
+        // eslint-disable-next-line no-console
         console.error("[TomorrowSidebar] Fetch error:", e);
         setError(e.message || "Failed to load workout plan");
       }
@@ -132,6 +134,7 @@ export default function TomorrowSidebar() {
         const json = await res.json();
         if (!deepEqual(json, monthData)) setMonthData(json);
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("[TomorrowSidebar] Month fetch error:", e);
       } finally {
         monthFetchInFlight.current = false;
@@ -153,6 +156,7 @@ export default function TomorrowSidebar() {
         const json = await res.json();
         if (!deepEqual(json, goals)) setGoals(json);
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("[TomorrowSidebar] Goals fetch error:", e);
       } finally {
         goalsFetchInFlight.current = false;
@@ -224,19 +228,20 @@ export default function TomorrowSidebar() {
             Notification.permission === "granted"
           ) {
             new Notification("Streak at risk", {
-              body: "2 hours until reset. Don't lose your streak!",
+              body: "2 hours until reset. Don’t lose your streak!",
               icon: "/icon-192x192.png",
             });
           }
         }, ms);
       }
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error("[TomorrowSidebar] Warning schedule error:", e);
     }
   }, []);
 
   const scheduleRefresh = useCallback(() => {
-    if (document?.hidden) return; // don't churn in background
+    if (typeof document !== "undefined" && document.hidden) return; // don't churn in background
     const now = Date.now();
     if (now - lastFetchedRef.current < 1200) return;
     lastFetchedRef.current = now;
@@ -257,13 +262,18 @@ export default function TomorrowSidebar() {
 
     // Quiet background throttling on visibility/focus
     const onVisibility = () => {
+      if (typeof document === "undefined") return;
       if (!document.hidden && Date.now() - lastOkAtRef.current > 5 * 60 * 1000) {
         scheduleRefresh();
       }
     };
     const onFocus = onVisibility;
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("focus", onFocus);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+    }
 
     // Set up warning notification
     const nextMidnight = new Date();
@@ -310,8 +320,12 @@ export default function TomorrowSidebar() {
       if (planAbortRef.current) {
         try { planAbortRef.current.abort(); } catch {}
       }
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("focus", onFocus);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+      }
     };
   }, [fetchPlan, fetchMonth, fetchGoals, scheduleRefresh, scheduleWarning]);
 
@@ -319,55 +333,33 @@ export default function TomorrowSidebar() {
   const monthName = monthData?.month || "";
   const year = monthData?.year || "";
   const days = useMemo(() => monthData?.days || [], [monthData?.days]);
-  const goalProgressPct = useMemo(
-    () => goals?.progress?.progressPct || 0,
-    [goals?.progress?.progressPct]
-  );
-  const goalCurrent = useMemo(
-    () => goals?.progress?.current || 0,
-    [goals?.progress?.current]
-  );
-  const goalTarget = useMemo(
-    () => goals?.progress?.target || 30,
-    [goals?.progress?.target]
-  );
-  const weekDayLabels = useMemo(
-    () => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    []
-  );
+  const progressObj = goals?.progress;
+  const goalProgressPct = useMemo(() => progressObj?.progressPct || 0, [progressObj]);
+  const goalCurrent = useMemo(() => progressObj?.current || 0, [progressObj]);
+  const goalTarget = useMemo(() => progressObj?.target || 30, [progressObj]);
+  const weekDayLabels = useMemo(() => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], []);
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const calendarCells = useMemo(() => {
     const firstOfMonth = new Date();
     firstOfMonth.setDate(1);
     firstOfMonth.setHours(0, 0, 0, 0);
     const firstWeekday = firstOfMonth.getDay();
-    const leadingBlanks = Array.from({ length: firstWeekday }, () => ({
-      blank: true,
-    }));
-    return [
-      ...leadingBlanks,
-      ...(days || []).map((d) => ({ ...d, blank: false })),
-    ];
+    const leadingBlanks = Array.from({ length: firstWeekday }, () => ({ blank: true }));
+    return [...leadingBlanks, ...(days || []).map((d) => ({ ...d, blank: false }))];
   }, [days]);
 
   // Format tomorrow's date nicely
   const tomorrowDate = useMemo(() => {
     if (!data?.dayName) return "Tomorrow";
     const date = new Date(data.date);
-    return `${data.dayName}, ${date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })}`;
+    return `${data.dayName}, ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
   }, [data]);
 
   // Clean and normalize exercises for display
   const cleanExercises = useMemo(() => {
-    const xs = (data?.workout?.exercises || []).filter(
-      (ex) => ex && typeof ex.name === "string" && ex.name.trim()
-    );
+    const xs = (data?.workout?.exercises || []).filter((ex) => ex && typeof ex.name === "string" && ex.name.trim());
     const filtered = xs.filter((ex) => {
       const name = ex.name.trim();
-      // drop if name is just sets×reps
       if (/^\d+\s*[×x]\s*[\dA-Za-z-]+$/.test(name)) return false;
       if (name.length > 60) return false;
       return true;
@@ -386,7 +378,6 @@ export default function TomorrowSidebar() {
   // Get source badge variant and text
   const sourceInfo = useMemo(() => {
     if (!data?.source) return null;
-
     const sourceMap = {
       "ai-generated": { text: "Fresh AI", variant: "default" },
       cache: { text: "Cached", variant: "secondary" },
@@ -395,7 +386,6 @@ export default function TomorrowSidebar() {
       throttled: { text: "Throttled", variant: "outline" },
       "error-fallback": { text: "Fallback", variant: "destructive" },
     };
-
     return sourceMap[data.source] || { text: data.source, variant: "outline" };
   }, [data?.source]);
 
@@ -408,39 +398,22 @@ export default function TomorrowSidebar() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-primary" />
-                <span className="text-sm font-semibold">Tomorrow's Workout</span>
+                <span className="text-sm font-semibold">Tomorrow’s Workout</span>
               </div>
               <div className="flex items-center gap-2">
                 {lastRefresh && (
                   <span className="text-xs text-muted-foreground">
-                    {lastRefresh.toLocaleTimeString("en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {lastRefresh.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleManualRefresh}
-                  disabled={refreshing || loading}
-                  className="h-6 w-6 p-0 hover:bg-neutral-800"
-                >
+                <Button variant="ghost" size="sm" onClick={handleManualRefresh} disabled={refreshing || loading} className="h-6 w-6 p-0 hover:bg-neutral-800">
                   <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
                 </Button>
               </div>
             </CardTitle>
-
-            {/* Date and Source Row */}
             <div className="flex items-center justify-between pt-1">
-              <div className="text-xs text-muted-foreground font-medium">
-                {tomorrowDate}
-              </div>
-              {sourceInfo && (
-                <Badge variant={sourceInfo.variant} className="text-xs h-5">
-                  {sourceInfo.text}
-                </Badge>
-              )}
+              <div className="text-xs text-muted-foreground font-medium">{tomorrowDate}</div>
+              {sourceInfo && (<Badge variant={sourceInfo.variant} className="text-xs h-5">{sourceInfo.text}</Badge>)}
             </div>
           </CardHeader>
 
@@ -449,20 +422,14 @@ export default function TomorrowSidebar() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Skeleton className="h-5 w-3/4" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-5 w-16" />
-                    <Skeleton className="h-5 w-20" />
-                  </div>
+                  <div className="flex gap-2"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-20" /></div>
                 </div>
                 <Separator className="bg-neutral-800" />
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-20" />
                   <div className="space-y-2">
                     {[...Array(4)].map((_, i) => (
-                      <div key={i} className="flex justify-between items-center">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-5 w-12" />
-                      </div>
+                      <div key={i} className="flex justify-between items-center"><Skeleton className="h-4 w-32" /><Skeleton className="h-5 w-12" /></div>
                     ))}
                   </div>
                 </div>
@@ -476,65 +443,36 @@ export default function TomorrowSidebar() {
                     <div className="text-xs text-muted-foreground">{error}</div>
                   </div>
                 </div>
-
                 {error.includes("parse") && (
                   <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-md border border-yellow-200/20">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                      <span className="font-medium text-yellow-600">Parsing Issue</span>
-                    </div>
+                    <div className="flex items-center gap-2 mb-1"><AlertTriangle className="h-3 w-3 text-yellow-500" /><span className="font-medium text-yellow-600">Parsing Issue</span></div>
                     <div>AI response format was unexpected. Usually resolves with a refresh.</div>
                   </div>
                 )}
-
-                <Button onClick={handleManualRefresh} disabled={refreshing} size="sm" variant="outline" className="w-full mt-3">
-                  {refreshing ? (
-                    <>
-                      <RefreshCw className="h-3 w-3 mr-2 animate-spin" />Retrying...
-                    </>
-                  ) : (
-                    <>Try Again</>
-                  )}
-                </Button>
+                <Button onClick={handleManualRefresh} disabled={refreshing} size="sm" variant="outline" className="w-full mt-3">{refreshing ? (<><RefreshCw className="h-3 w-3 mr-2 animate-spin" />Retrying...</>) : (<>Try Again</>)}</Button>
               </div>
             ) : !data?.workout ? (
               <div className="text-center py-6">
                 <div className="text-muted-foreground text-sm mb-3">No workout data available</div>
-                <Button onClick={handleManualRefresh} size="sm" variant="outline">
-                  <Activity className="h-3 w-3 mr-2" />Load Workout
-                </Button>
+                <Button onClick={handleManualRefresh} size="sm" variant="outline"><Activity className="h-3 w-3 mr-2" />Load Workout</Button>
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Workout Header */}
                 <div>
                   <h3 className="font-semibold text-foreground mb-2 text-base">{data.workout.name}</h3>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                      <Clock className="h-3 w-3" />{data.workout.estimatedDuration} min
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      <Dumbbell className="h-3 w-3 mr-1" />{cleanExercises.length} exercises
-                    </Badge>
+                    <Badge variant="secondary" className="flex items-center gap-1 text-xs"><Clock className="h-3 w-3" />{data.workout.estimatedDuration} min</Badge>
+                    <Badge variant="outline" className="text-xs"><Dumbbell className="h-3 w-3 mr-1" />{cleanExercises.length} exercises</Badge>
                   </div>
                 </div>
-
                 <Separator className="bg-neutral-800/50" />
-
-                {/* Exercises List */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-medium text-muted-foreground">Exercises</h4>
-                    <div className="h-px bg-border flex-1" />
-                  </div>
-
+                  <div className="flex items-center gap-2"><h4 className="text-sm font-medium text-muted-foreground">Exercises</h4><div className="h-px bg-border flex-1" /></div>
                   <div className="space-y-2">
                     {cleanExercises.map((ex, i) => (
                       <div key={`${ex.name}-${i}`} className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800/50 hover:bg-neutral-900/80 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-semibold text-primary">{i + 1}</span>
-                          </div>
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"><span className="text-xs font-semibold text-primary">{i + 1}</span></div>
                           <span className="text-sm font-medium text-foreground">{ex.name}</span>
                         </div>
                         <Badge variant="outline" className="text-xs font-mono bg-neutral-800/50">{ex.sets}×{ex.reps}</Badge>
@@ -550,35 +488,19 @@ export default function TomorrowSidebar() {
         {/* Streak Goal */}
         <Card className="border border-neutral-900/10 dark:border-neutral-900">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-primary" /> Streak Goal
-            </CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><Trophy className="h-4 w-4 text-primary" /> Streak Goal</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {goalsLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-2 w-full" />
-              </div>
+              <div className="space-y-3"><Skeleton className="h-4 w-20" /><Skeleton className="h-2 w-full" /></div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs text-muted-foreground">Progress</div>
-                  <div className="text-xs font-medium text-primary">{goalCurrent}/{goalTarget}</div>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: `${goalProgressPct}%` }} />
-                </div>
+                <div className="flex items-center justify-between mb-2"><div className="text-xs text-muted-foreground">Progress</div><div className="text-xs font-medium text-primary">{goalCurrent}/{goalTarget}</div></div>
+                <div className="w-full bg-muted rounded-full h-2"><div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: `${goalProgressPct}%` }} /></div>
                 <div className="text-xs text-muted-foreground text-center mt-1">{goalProgressPct}% Complete</div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {[7, 30, 75].map((d) => (
-                    <button key={d} onClick={() => setGoalTarget(d)} disabled={savingGoal} className={`text-xs py-1 rounded-md border transition-colors ${
-                        goalTarget === d
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card text-foreground border-border/50 hover:bg-muted"
-                      }`}>
-                      {d} days
-                    </button>
+                    <button key={d} onClick={() => setGoalTarget(d)} disabled={savingGoal} className={`text-xs py-1 rounded-md border transition-colors ${goalTarget === d ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border/50 hover:bg-muted"}`}>{d} days</button>
                   ))}
                 </div>
               </>
@@ -589,40 +511,21 @@ export default function TomorrowSidebar() {
         {/* Monthly Streak Calendar */}
         <Card className="border border-neutral-900/10 dark:border-neutral-900">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-primary" /> {monthName} {year}
-            </CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary" /> {monthName} {year}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-4">
             {monthLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-24" />
-                <div className="grid grid-cols-7 gap-2">
-                  {[...Array(28)].map((_, i) => (
-                    <Skeleton key={i} className="w-9 h-9 rounded-md" />
-                  ))}
-                </div>
-              </div>
+              <div className="space-y-3"><Skeleton className="h-4 w-24" /><div className="grid grid-cols-7 gap-2">{[...Array(28)].map((_, i) => (<Skeleton key={i} className="w-9 h-9 rounded-md" />))}</div></div>
             ) : (
               <>
-                <div className="grid grid-cols-7 gap-2 mb-2">
-                  {weekDayLabels.map((wd) => (
-                    <div key={wd} className="text-[10px] text-muted-foreground text-center font-medium">{wd}</div>
-                  ))}
-                </div>
+                <div className="grid grid-cols-7 gap-2 mb-2">{weekDayLabels.map((wd) => (<div key={wd} className="text-[10px] text-muted-foreground text-center font-medium">{wd}</div>))}</div>
                 <div className="grid grid-cols-7 gap-2">
                   {(calendarCells || []).map((cell, idx) => {
                     if (cell.blank) return <div key={`b-${idx}`} />;
                     const isToday = todayIso === cell.date;
                     const inPast = new Date(cell.date) < new Date(todayIso);
                     const missed = inPast && !cell.completed;
-                    const stateClass = cell.completed
-                      ? "bg-green-500 text-white border-green-600"
-                      : isToday
-                      ? "bg-primary/15 text-primary border-primary/30"
-                      : missed
-                      ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900"
-                      : "bg-muted text-muted-foreground border-border/50";
+                    const stateClass = cell.completed ? "bg-green-500 text-white border-green-600" : isToday ? "bg-primary/15 text-primary border-primary/30" : missed ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900" : "bg-muted text-muted-foreground border-border/50";
                     const Icon = cell.completed ? CheckCircle2 : missed ? AlertCircle : Circle;
                     return (
                       <div key={cell.date} className="flex flex-col items-center gap-1">
