@@ -4,12 +4,11 @@ import MemoryService from "@/services/memoryService";
 import GeminiService from "@/services/geminiService";
 import { User, Workout, Streak } from "@/models";
 
-// 30 min cache TTL for tomorrow plan to avoid flicker and API overuse
+// Cache window to prevent churn
 const CACHE_TTL_MS = 30 * 60 * 1000;
-let inMemoryCache = { plan: null, expiresAt: 0, key: "" };
+let inMemoryCache = { plan: null, expiresAt: 0, key: "", strength: 0 };
 
 function buildCacheKey({ user, streak, lastWorkoutAt }) {
-  // Key factors: user id, streak current, last workout date day, and local date for tomorrow
   const uid = user?._id || "local";
   const streakK = streak ? `${streak.currentStreak}-${streak.longestStreak}` : "0-0";
   const lastW = lastWorkoutAt ? new Date(lastWorkoutAt).toDateString() : "none";
@@ -61,32 +60,54 @@ function parsePlanFromMarkdown(md) {
   return plan;
 }
 
+function computeContextStrength(memories = []) {
+  // Assign scores to signals that justify changing tomorrow's plan
+  // Injuries/constraints > soreness > explicit requests
+  let score = 0;
+  for (const m of memories) {
+    const c = (m.content || "").toLowerCase();
+    if (/injur|tore|sprain|fracture|doctor|medical/.test(c)) score += 5; // strong signal
+    if (/(knee|shoulder|back|leg|arm).*(hurt|pain|sore)/.test(c)) score += 3; // soreness signal
+    if (/(walk|active recovery|rest day|can't lift|cannot lift)/.test(c)) score += 3; // explicit adjustment
+    if (/(travel|no equipment|time constraint|busy)/.test(c)) score += 2; // logistical
+  }
+  return score;
+}
+
 export async function GET() {
   try {
     await connectDatabase();
 
-    // Build context
     const memoryService = new MemoryService();
     const user = await User.findById("local");
     const recentWorkouts = await memoryService.getRecentWorkouts(5);
-    const memories = await memoryService.getMemoriesByType("pattern", 20);
-    const constraints = await memoryService.getMemoriesByType("constraint", 10);
-    const injuries = await memoryService.getMemoriesByType("injury", 10);
+    const patternMems = await memoryService.getMemoriesByType("pattern", 50);
+    const constraints = await memoryService.getMemoriesByType("constraint", 20);
+    const injuries = await memoryService.getMemoriesByType("injury", 20);
     const streak = await Streak.findById("local");
+
+    const memories = [...(patternMems || []), ...(constraints || []), ...(injuries || [])];
 
     const lastWorkoutAt = recentWorkouts?.[0]?.date || streak?.lastWorkoutDate || null;
     const cacheKey = buildCacheKey({ user, streak, lastWorkoutAt });
 
-    // Serve from cache if valid
+    // Evaluate context strength to decide if we should refresh plan
+    const strength = computeContextStrength(memories);
+
     const now = Date.now();
-    if (inMemoryCache.plan && inMemoryCache.expiresAt > now && inMemoryCache.key === cacheKey) {
-      return NextResponse.json({ date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), workout: inMemoryCache.plan, source: "ai-cache" });
+    const cacheValid = inMemoryCache.plan && inMemoryCache.expiresAt > now && inMemoryCache.key === cacheKey;
+
+    // Only bypass cache if strong context suggests a change OR cache expired
+    const shouldRefresh = !cacheValid || strength >= 5; // threshold 5 ~ injury/explicit change
+
+    if (cacheValid && !shouldRefresh) {
+      return NextResponse.json({ date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), workout: inMemoryCache.plan, source: "ai-cache", strength: inMemoryCache.strength });
     }
 
     const context = {
       user,
       recentWorkouts,
-      memories: [...(memories || []), ...(constraints || []), ...(injuries || [])],
+      memories,
       lastMessages: [],
       workoutJustLogged: null,
       streakData: streak ? { currentStreak: streak.currentStreak, longestStreak: streak.longestStreak, lastWorkoutDate: streak.lastWorkoutDate } : null,
@@ -99,13 +120,16 @@ export async function GET() {
     const plan = parsePlanFromMarkdown(reply);
 
     if (!plan) {
+      // If we cannot parse but have cached, serve cached to avoid flicker
+      if (cacheValid) {
+        return NextResponse.json({ date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), workout: inMemoryCache.plan, source: "ai-cache", strength: inMemoryCache.strength, warning: "unparseable_ai_reply" });
+      }
       return NextResponse.json({ error: "AI did not return a parseable plan" }, { status: 502 });
     }
 
-    // Cache it
-    inMemoryCache = { plan, key: cacheKey, expiresAt: now + CACHE_TTL_MS };
+    inMemoryCache = { plan, key: cacheKey, expiresAt: now + CACHE_TTL_MS, strength };
 
-    return NextResponse.json({ date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), workout: plan, source: "ai" });
+    return NextResponse.json({ date: new Date(now + 24 * 60 * 60 * 1000).toISOString(), workout: plan, source: "ai", strength });
   } catch (e) {
     console.error("tomorrow-workout-ai error:", e);
     return NextResponse.json({ error: "Failed to generate plan" }, { status: 500 });
