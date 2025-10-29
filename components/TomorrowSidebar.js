@@ -12,12 +12,14 @@ export default function TomorrowSidebar() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
+  // Streak + Calendar state
   const [monthLoading, setMonthLoading] = useState(true);
   const [monthData, setMonthData] = useState(null);
   const [goals, setGoals] = useState(null);
   const [goalsLoading, setGoalsLoading] = useState(true);
   const [savingGoal, setSavingGoal] = useState(false);
 
+  // timers/flags
   const warningTimerRef = useRef(null);
   const refreshTimerRef = useRef(null);
   const lastFetchedRef = useRef(0);
@@ -76,13 +78,23 @@ export default function TomorrowSidebar() {
   const setGoalTarget = useCallback(async (targetDays) => {
     try {
       setSavingGoal(true);
+      // optimistic update
       setGoals((prev) => {
         const current = prev?.progress?.current || 0;
-        return { goals: { ...(prev?.goals || {}), type: "streak", targetDays, active: true }, progress: { current, target: targetDays, progressPct: Math.max(0, Math.min(100, Math.round((current / targetDays) * 100))) } };
+        return {
+          goals: { ...(prev?.goals || {}), type: "streak", targetDays, active: true },
+          progress: {
+            current,
+            target: targetDays,
+            progressPct: Math.max(0, Math.min(100, Math.round((current / targetDays) * 100))),
+          },
+        };
       });
       await fetch("/api/goals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "streak", targetDays, active: true }) });
       await fetchGoals(true);
-    } finally { setSavingGoal(false); }
+    } finally {
+      setSavingGoal(false);
+    }
   }, [fetchGoals]);
 
   const scheduleWarning = useCallback((warningAtISO) => {
@@ -90,8 +102,7 @@ export default function TomorrowSidebar() {
       if (warningTimerRef.current) { clearTimeout(warningTimerRef.current); warningTimerRef.current = null; }
       if (!warningAtISO) return;
       const warnAt = new Date(warningAtISO).getTime();
-      const now = Date.now();
-      const ms = warnAt - now;
+      const ms = warnAt - Date.now();
       if (ms > 0) {
         warningTimerRef.current = setTimeout(() => {
           if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
@@ -135,17 +146,15 @@ export default function TomorrowSidebar() {
     };
   }, [fetchPlan, fetchMonth, fetchGoals, scheduleRefresh, scheduleWarning]);
 
+  // memo values
   const monthName = monthData?.month || "";
   const year = monthData?.year || "";
   const days = useMemo(() => monthData?.days || [], [monthData?.days]);
-
   const goalProgressPct = useMemo(() => goals?.progress?.progressPct || 0, [goals?.progress?.progressPct]);
   const goalCurrent = useMemo(() => goals?.progress?.current || 0, [goals?.progress?.current]);
   const goalTarget = useMemo(() => goals?.progress?.target || 30, [goals?.progress?.target]);
-
   const weekDayLabels = useMemo(() => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], []);
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
   const calendarCells = useMemo(() => {
     const firstOfMonth = new Date();
     firstOfMonth.setDate(1);
@@ -158,6 +167,7 @@ export default function TomorrowSidebar() {
   return (
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">
       <div className="p-4 space-y-4 h-[100svh] overflow-y-auto scrollbar-hide">
+        {/* Tomorrow's Workout (AI) */}
         <Card className="border border-neutral-900/10 dark:border-neutral-900">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" /> Tomorrow&apos;s Workout</CardTitle>
@@ -201,7 +211,88 @@ export default function TomorrowSidebar() {
           </CardContent>
         </Card>
 
-        {/* streak goals + calendar same as before */}
+        {/* Streak Goal */}
+        <Card className="border border-neutral-900/10 dark:border-neutral-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><Trophy className="h-4 w-4 text-primary" /> Streak Goal</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {goalsLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-2 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs text-muted-foreground">Progress</div>
+                  <div className="text-xs font-medium text-primary">{goalCurrent}/{goalTarget}</div>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: `${goalProgressPct}%` }} />
+                </div>
+                <div className="text-xs text-muted-foreground text-center mt-1">{goalProgressPct}% Complete</div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[7, 30, 75].map((d) => (
+                    <button key={d} onClick={() => setGoalTarget(d)} disabled={savingGoal} className={`text-xs py-1 rounded-md border ${goalTarget === d ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border/50"} hover:opacity-90`}>
+                      {d} days
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Monthly Streak Calendar */}
+        <Card className="border border-neutral-900/10 dark:border-neutral-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary" /> {monthName} {year}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 pb-4">
+            {monthLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-24" />
+                <div className="grid grid-cols-7 gap-2">
+                  {[...Array(28)].map((_, i) => (<Skeleton key={i} className="w-9 h-9 rounded-md" />))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {weekDayLabels.map((wd) => (
+                    <div key={wd} className="text-[10px] text-muted-foreground text-center font-medium">{wd}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {(calendarCells || []).map((cell, idx) => {
+                    if (cell.blank) return <div key={`b-${idx}`} />;
+                    const isToday = todayIso === cell.date;
+                    const inPast = new Date(cell.date) < new Date(todayIso);
+                    const missed = inPast && !cell.completed;
+                    const stateClass = cell.completed
+                      ? "bg-green-500 text-white border-green-600"
+                      : isToday
+                      ? "bg-primary/15 text-primary border-primary/30"
+                      : missed
+                      ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900"
+                      : "bg-muted text-muted-foreground border-border/50";
+                    const Icon = cell.completed ? CheckCircle2 : missed ? AlertCircle : Circle;
+                    return (
+                      <div key={cell.date} className="flex flex-col items-center gap-1">
+                        <div className={`w-9 h-9 rounded-md border flex items-center justify-center text-[11px] font-semibold transition-all hover:scale-105 ${stateClass}`} title={`${cell.date} ${cell.completed ? "✓ Completed" : missed ? "Missed" : isToday ? "Today" : "Not completed"}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium">{new Date(cell.date).getDate()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">{(days || []).filter((d) => d.completed).length} of {(days || []).length} days completed this month</div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </aside>
   );
