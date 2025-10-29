@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import connectDatabase from "@/lib/database";
 import MemoryService from "@/services/memoryService";
 import GeminiService from "@/services/geminiService";
-import { User, Workout, Streak } from "@/models";
+import { User, Workout, Streak, Message } from "@/models";
 
-// Smart cache: 60 min TTL; bust on workout completion or strong context
+// Smart cache: 60 min TTL; bust on workout completion, strong context, or fresh adjustment memory
 const CACHE_TTL_MS = 60 * 60 * 1000;
-let cache = { plan: null, key: "", expiresAt: 0, strength: 0 };
+let cache = { plan: null, key: "", expiresAt: 0, strength: 0, lastAdjAt: 0 };
 
 function tomorrowDayKey() {
   const d = new Date();
@@ -60,19 +60,39 @@ export async function GET() {
     const memoryService = new MemoryService();
     const user = await User.findById("local");
     const streak = await Streak.findById("local");
+
+    // Today window and today's last workout name
+    const nowDate = new Date();
+    const startOfDay = new Date(nowDate); startOfDay.setHours(0,0,0,0);
+    const endOfDay = new Date(nowDate); endOfDay.setHours(23,59,59,999);
+    const todaysLast = await Workout.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }).limit(1).lean();
+    const todayName = todaysLast?.[0]?.name || null;
+
+    // Recent workouts and memories
     const recentWorkouts = await memoryService.getRecentWorkouts(5);
-    const lastWorkoutISO = recentWorkouts?.[0]?.date || streak?.lastWorkoutDate || null;
     const patternMems = await memoryService.getMemoriesByType("pattern", 50);
     const constraints = await memoryService.getMemoriesByType("constraint", 20);
     const injuries = await memoryService.getMemoriesByType("injury", 20);
     const memories = [...(patternMems || []), ...(constraints || []), ...(injuries || [])];
 
-    const key = buildKey({ userId: user?._id, lastWorkoutISO: lastWorkoutISO ? new Date(lastWorkoutISO).toISOString() : null, streakCurrent: streak?.currentStreak });
-    const strength = contextStrength(memories);
+    // Recent short-term chat (last 5 messages)
+    const lastMessages = await Message.find({}).sort({ createdAt: -1 }).limit(5).lean();
+
+    // Recent explicit adjustments in last 10 minutes
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentAdjustments = (patternMems || []).filter(m => (m.content||"").toLowerCase().match(/active recovery|walk|can't lift|cannot lift|skip/i) && new Date(m.createdAt) >= tenMinAgo);
+
+    const recentWorkoutISO = recentWorkouts?.[0]?.date || streak?.lastWorkoutDate || null;
+    const key = buildKey({ userId: user?._id, lastWorkoutISO: recentWorkoutISO ? new Date(recentWorkoutISO).toISOString() : null, streakCurrent: streak?.currentStreak });
+
+    const strength = contextStrength([...memories, ...recentAdjustments]);
 
     const now = Date.now();
-    // Smart cache policy: serve cache when valid unless very strong signal (>=6)
-    if (cache.plan && cache.key === key && cache.expiresAt > now && strength < 6) {
+    const cacheValid = cache.plan && cache.key === key && cache.expiresAt > now;
+    const hasFreshAdjustment = recentAdjustments.length > 0;
+
+    // Serve cache unless very strong signal (>=6) or a fresh explicit adjustment or cache expired
+    if (cacheValid && strength < 6 && !hasFreshAdjustment) {
       return NextResponse.json({ date: new Date(now + 86400000).toISOString(), workout: cache.plan, source: "ai-cache", strength: cache.strength });
     }
 
@@ -80,22 +100,25 @@ export async function GET() {
       user,
       recentWorkouts,
       memories,
+      lastMessages: (lastMessages || []).reverse().map(m => ({ role: m.role, content: m.content })),
+      workoutJustLogged: todayName ? { name: todayName, exercises: [] } : null,
       streakData: streak ? { currentStreak: streak.currentStreak, longestStreak: streak.longestStreak, lastWorkoutDate: streak.lastWorkoutDate } : null,
     };
 
     const gemini = new GeminiService();
-    const prompt = "Plan my workout for tomorrow based on my recent training, soreness and constraints. Output concise Markdown: '##' title, optional '<nn> min', then 5–6 bullets (each ends with sets×reps like 3×10). If active recovery is best, title it accordingly and list 4–5 gentle movements with durations.";
+    const prompt = "Plan my workout for tomorrow based on my recent training, today’s session, any soreness/constraints from chat or memories, and alternating focus. Alternate away from today’s primary area, avoid repeating consecutive days, and prefer active recovery if soreness/injury suggests it. Output concise Markdown: '##' title, optional '<nn> min', then 5–6 bullets (each ends with sets×reps like 3×10). For active recovery, list 4–5 gentle movements with durations instead of sets×reps.";
+
     const { reply } = await gemini.generateResponse(prompt, context);
     const plan = parsePlan(reply);
 
     if (!plan) {
-      if (cache.plan && cache.key === key) {
+      if (cacheValid) {
         return NextResponse.json({ date: new Date(now + 86400000).toISOString(), workout: cache.plan, source: "ai-cache", strength: cache.strength, warning: "unparseable_ai_reply" });
       }
       return NextResponse.json({ error: "AI did not return a parseable plan" }, { status: 502 });
     }
 
-    cache = { plan, key, expiresAt: now + CACHE_TTL_MS, strength };
+    cache = { plan, key, expiresAt: now + CACHE_TTL_MS, strength, lastAdjAt: hasFreshAdjustment ? now : cache.lastAdjAt };
     return NextResponse.json({ date: new Date(now + 86400000).toISOString(), workout: plan, source: "ai", strength });
   } catch (e) {
     console.error("tomorrow-workout-ai error:", e);
