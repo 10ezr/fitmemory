@@ -44,14 +44,14 @@ function hashContext(context) {
   return JSON.stringify(relevant);
 }
 
-// Enhanced parsing with multiple strategies and better error handling
+// Clean and enhanced parsing with strict filtering
 function parsePlan(md, fallbackName = "Tomorrow's Workout") {
   if (!md || typeof md !== "string") {
     console.log("[Parser] No markdown content to parse");
     return null;
   }
 
-  console.log("[Parser] Attempting to parse:", md.slice(0, 200) + "...");
+  console.log("[Parser] Raw response:", md.slice(0, 300) + "...");
   
   const lines = md.replace(/\r\n/g, "\n").split(/\n/).map(l => l.trim()).filter(l => l);
   const plan = {
@@ -60,74 +60,83 @@ function parsePlan(md, fallbackName = "Tomorrow's Workout") {
     exercises: []
   };
 
-  let currentSection = "";
-  let foundExercises = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-
-    // Strategy 1: Look for workout title
-    const titleMatch = line.match(/^#+\s*(.+?(?:workout|session|training|plan|routine)).*$/i);
-    if (titleMatch) {
-      plan.name = titleMatch[1].replace(/^Today/i, "Tomorrow").replace(/^today/i, "tomorrow").trim();
-      continue;
-    }
-
-    // Strategy 2: Look for duration
-    const durationMatch = line.match(/(\d{1,3})\s*(?:min|minutes?)/i);
-    if (durationMatch) {
-      plan.estimatedDuration = Math.max(15, Math.min(120, parseInt(durationMatch[1], 10)));
-      continue;
-    }
-
-    // Strategy 3: Detect section headers
-    if (line.match(/^\*\*\s*(main|exercises?|workout|training)\s*.*\*\*:?/i)) {
-      currentSection = "exercises";
-      continue;
-    }
-    if (line.match(/^\*\*\s*(warm.?up|cool.?down|notes?)\s*.*\*\*:?/i)) {
-      currentSection = "other";
-      continue;
-    }
-
-    // Strategy 4: Parse exercises - Multiple patterns
-    if (currentSection === "exercises" || !foundExercises) {
-      const exercise = parseExerciseLine(line);
-      if (exercise) {
-        plan.exercises.push(exercise);
-        foundExercises = true;
+  let foundTitle = false;
+  let foundDuration = false;
+  
+  // First pass: Extract title and duration
+  for (const line of lines) {
+    // Look for workout title
+    if (!foundTitle) {
+      const titleMatch = line.match(/^#+\s*(.+?(?:workout|session|training|plan|routine)).*$/i);
+      if (titleMatch) {
+        plan.name = titleMatch[1].replace(/^Today/i, "Tomorrow").replace(/^today/i, "tomorrow").trim();
+        foundTitle = true;
         continue;
       }
     }
 
-    // Strategy 5: Fallback - any line with exercise pattern
-    if (!foundExercises) {
-      const exercise = parseExerciseLine(line);
-      if (exercise) {
-        plan.exercises.push(exercise);
-        foundExercises = true;
+    // Look for duration
+    if (!foundDuration) {
+      const durationMatch = line.match(/(\d{1,3})\s*(?:min|minutes?)/i);
+      if (durationMatch) {
+        plan.estimatedDuration = Math.max(15, Math.min(120, parseInt(durationMatch[1], 10)));
+        foundDuration = true;
+        continue;
       }
     }
   }
 
-  // Strategy 6: If no exercises found, try parsing the entire text as one block
-  if (plan.exercises.length === 0) {
-    console.log("[Parser] No exercises found, trying block parsing...");
-    const blockExercises = parseExerciseBlock(md);
-    plan.exercises = blockExercises;
+  // Second pass: Extract exercises with strict filtering
+  const exercises = [];
+  let inExerciseSection = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Detect exercise section start
+    if (line.match(/^\*\*\s*(main|exercises?|workout|training)\s*.*\*\*:?/i)) {
+      inExerciseSection = true;
+      continue;
+    }
+    
+    // Skip non-exercise sections
+    if (line.match(/^\*\*\s*(warm.?up|cool.?down|notes?|foam rolling|gentle|stretching)\s*.*\*\*:?/i)) {
+      inExerciseSection = false;
+      continue;
+    }
+
+    // Parse exercise lines only in exercise sections or if they clearly look like exercises
+    if (inExerciseSection || !exercises.length) {
+      const exercise = parseExerciseLineStrict(line);
+      if (exercise) {
+        exercises.push(exercise);
+      }
+    }
   }
 
-  // Strategy 7: Last resort - create a simple bodyweight routine if nothing works
-  if (plan.exercises.length === 0) {
+  // If no exercises found with strict parsing, try more lenient approach
+  if (exercises.length === 0) {
+    console.log("[Parser] No exercises found with strict parsing, trying lenient approach");
+    for (const line of lines) {
+      const exercise = parseExerciseLineLenient(line);
+      if (exercise && isValidExercise(exercise.name)) {
+        exercises.push(exercise);
+      }
+    }
+  }
+
+  // Final fallback - use default exercises
+  if (exercises.length === 0) {
     console.log("[Parser] Creating fallback routine");
-    plan.exercises = [
+    exercises.push(
       { name: "Push-ups", sets: 3, reps: "10-15" },
       { name: "Bodyweight Squats", sets: 3, reps: "15-20" },
-      { name: "Plank", sets: 3, reps: "30-60s" },
-      { name: "Curl Bar Bicep Curls", sets: 3, reps: "10-12" }
-    ];
+      { name: "Curl Bar Bicep Curls", sets: 3, reps: "10-12" },
+      { name: "Plank", sets: 3, reps: "30-45s" }
+    );
     plan.name = "Tomorrow's Recovery Workout";
+  } else {
+    plan.exercises = exercises.slice(0, 6); // Limit to 6 exercises
   }
 
   console.log(`[Parser] Successfully parsed ${plan.exercises.length} exercises:`, 
@@ -136,9 +145,44 @@ function parsePlan(md, fallbackName = "Tomorrow's Workout") {
   return plan;
 }
 
-function parseExerciseLine(line) {
-  // Pattern 1: "- Push-ups 3×10" or "* Push-ups 3x10"
-  let match = line.match(/^[\-\*]\s*(.+?)\s+(\d+)\s*[×x]\s*([\dA-Za-z\-]+)(?:\s|$)/i);
+function parseExerciseLineStrict(line) {
+  // Only parse lines that start with bullet points or dashes
+  if (!line.match(/^[-*•]\s/)) {
+    return null;
+  }
+
+  // Remove bullet point
+  const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
+  
+  // Skip if line is too long (likely description text)
+  if (cleanLine.length > 50) {
+    return null;
+  }
+
+  // Skip lines with certain words that indicate it's not an exercise
+  const skipWords = ['thanks', 'approach', 'ensures', 'healing', 'process', 'come back', 'stronger', 'truly ready', 'if you', 'use light', 'moderate pressure'];
+  if (skipWords.some(word => cleanLine.toLowerCase().includes(word))) {
+    return null;
+  }
+
+  return parseExerciseFormat(cleanLine);
+}
+
+function parseExerciseLineLenient(line) {
+  // More permissive parsing for lines that might be exercises
+  const cleanLine = line.replace(/^[-*•]\s*/, '').replace(/^\*\*|\*\*$/g, '').trim();
+  
+  // Skip very long lines
+  if (cleanLine.length > 60) {
+    return null;
+  }
+
+  return parseExerciseFormat(cleanLine);
+}
+
+function parseExerciseFormat(text) {
+  // Pattern 1: "Push-ups 3×10" or "Push-ups 3x10"
+  let match = text.match(/^(.+?)\s+(\d+)\s*[×x]\s*([\dA-Za-z\-]+)$/i);
   if (match) {
     return {
       name: match[1].trim(),
@@ -147,8 +191,8 @@ function parseExerciseLine(line) {
     };
   }
 
-  // Pattern 2: "- Push-ups: 3 sets of 10"
-  match = line.match(/^[\-\*]\s*(.+?):\s*(\d+)\s*sets?\s*(?:of\s*)?(\d+|[\dA-Za-z\-]+)/i);
+  // Pattern 2: "Push-ups: 3 sets of 10"
+  match = text.match(/^(.+?):\s*(\d+)\s*sets?\s*(?:of\s*)?(\d+|[\dA-Za-z\-]+)/i);
   if (match) {
     return {
       name: match[1].trim(),
@@ -158,7 +202,7 @@ function parseExerciseLine(line) {
   }
 
   // Pattern 3: "3×10 Push-ups" (sets first)
-  match = line.match(/^[\-\*]?\s*(\d+)\s*[×x]\s*([\dA-Za-z\-]+)\s+(.+)$/i);
+  match = text.match(/^(\d+)\s*[×x]\s*([\dA-Za-z\-]+)\s+(.+)$/i);
   if (match) {
     return {
       name: match[3].trim(),
@@ -167,11 +211,10 @@ function parseExerciseLine(line) {
     };
   }
 
-  // Pattern 4: Just exercise name with bullet
-  match = line.match(/^[\-\*]\s*([A-Za-z][A-Za-z\s\-']+)\s*$/i);
-  if (match && match[1].length > 3) {
+  // Pattern 4: Just exercise name (add default sets/reps)
+  if (isValidExercise(text)) {
     return {
-      name: match[1].trim(),
+      name: text.trim(),
       sets: 3,
       reps: "10-12"
     };
@@ -180,32 +223,35 @@ function parseExerciseLine(line) {
   return null;
 }
 
-function parseExerciseBlock(text) {
-  const exercises = [];
-  const exerciseNames = [
-    'push.?ups?', 'squats?', 'lunges?', 'plank', 'burpees?', 'jumping jacks?',
-    'curl', 'press', 'row', 'pull.?ups?', 'chin.?ups?', 'dips?', 'crunches?',
-    'deadlifts?', 'overhead', 'lateral', 'tricep', 'bicep', 'shoulder'
-  ];
-
-  for (const pattern of exerciseNames) {
-    const regex = new RegExp(`([^\n]*${pattern}[^\n]*)`, 'gi');
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const line = match[1].trim();
-      if (line.length > 3) {
-        const setsMatch = line.match(/(\d+)\s*[×x]\s*([\dA-Za-z\-]+)/);
-        exercises.push({
-          name: line.replace(/\d+\s*[×x]\s*[\dA-Za-z\-]+/g, '').replace(/[\-\*]/, '').trim(),
-          sets: setsMatch ? parseInt(setsMatch[1]) : 3,
-          reps: setsMatch ? setsMatch[2] : "10-12"
-        });
-        break; // Only take first match per exercise type
-      }
-    }
+function isValidExercise(name) {
+  if (!name || name.length < 3 || name.length > 30) {
+    return false;
   }
 
-  return exercises.slice(0, 6); // Limit to 6 exercises
+  // Must contain at least one exercise-related word
+  const exerciseWords = [
+    'push', 'pull', 'squat', 'lunge', 'plank', 'curl', 'press', 'row', 'dip',
+    'crunch', 'deadlift', 'burpee', 'jump', 'stretch', 'hold', 'raise', 'fly',
+    'extension', 'flexion', 'rotation', 'bridge', 'twist', 'climb', 'step'
+  ];
+  
+  const hasExerciseWord = exerciseWords.some(word => 
+    name.toLowerCase().includes(word)
+  );
+
+  // Skip if it contains non-exercise words
+  const skipWords = [
+    'thanks', 'approach', 'ensure', 'process', 'ready', 'truly', 'healing',
+    'support', 'body', 'come back', 'stronger', 'session', 'friday', 'saturday',
+    'sunday', 'needed', 'pressure', 'focusing', 'groups', 'muscle', 'tender',
+    'spot', 'ease', 'area', 'reaching', 'plan', 'minutes', 'use light'
+  ];
+  
+  const hasSkipWord = skipWords.some(word => 
+    name.toLowerCase().includes(word)
+  );
+
+  return hasExerciseWord && !hasSkipWord;
 }
 
 export async function GET() {
@@ -294,25 +340,25 @@ export async function GET() {
       });
     }
 
-    // Generate new plan with enhanced prompt
+    // Generate new plan with enhanced prompt for cleaner output
     const gemini = new GeminiService();
     
-    // Enhanced prompt with clear structure and context awareness
-    const prompt = `Create tomorrow's workout plan (${tomorrow.dayName}, ${tomorrow.dateKey}). 
+    const prompt = `Create tomorrow's workout plan (${tomorrow.dayName}, ${tomorrow.dateKey}).
 
-Based on my recent training and available equipment (curl bar max 25kg, bodyweight exercises), design a focused session.
+IMPORTANT: Format EXACTLY as shown below with clean bullet points only:
 
-Format as follows:
 ## Tomorrow's [Focus] Workout
 **Duration:** XX min
-**Main Exercises:**
-- Exercise 1: 3×10-12
-- Exercise 2: 3×8-10  
-- Exercise 3: 3×10-15
-- Exercise 4: 2×30-60s
-- Exercise 5: 3×8-12
 
-Consider my recent workouts to ensure good progression and recovery. Keep it practical for home training.`;
+**Exercises:**
+- Push-ups: 3×10-12
+- Squats: 3×15-20
+- Curl Bar Bicep Curls: 3×8-10
+- Plank: 3×30-45s
+- Lunges: 2×10 each leg
+
+Equipment: Curl bar (max 25kg), bodyweight exercises only.
+Keep it simple and focused for home training. NO explanatory text, just clean exercise list.`;
 
     console.log("[TomorrowAI] Generating new plan with context:", {
       recentWorkouts: recentWorkouts?.length || 0,
@@ -331,7 +377,7 @@ Consider my recent workouts to ensure good progression and recovery. Keep it pra
     const plan = parsePlan(reply, `${tomorrow.dayName}'s Workout`);
     
     if (!plan || plan.exercises.length === 0) {
-      console.error("[TomorrowAI] Failed to parse plan from response:", reply);
+      console.error("[TomorrowAI] Failed to parse plan from response");
       return NextResponse.json({ 
         error: "Could not parse workout plan", 
         debug: {
