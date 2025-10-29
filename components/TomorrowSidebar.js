@@ -43,8 +43,7 @@ export default function TomorrowSidebar() {
       setError(null);
       // Prefer AI endpoint, fallback to legacy
       let res = await fetch("/api/tomorrow-workout-ai", { cache: "no-store" });
-      if (!res.ok)
-        res = await fetch("/api/tomorrow-workout", { cache: "no-store" });
+
       const json = await res.json();
       if (res.ok) setData(json);
       else setError(json.error || "Failed to load");
