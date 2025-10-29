@@ -245,7 +245,7 @@ export default function TomorrowSidebar() {
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">
       <div className="p-4 space-y-4 h-[100svh] overflow-y-auto scrollbar-hide">
         {/* Tomorrow's Workout (AI) */}
-        <Card className="border border-neutral-900/10 dark:border-neutral-900">
+        <Card className="border bg-neutral-900/90 border-neutral-900/10 dark:border-neutral-900">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" /> Tomorrow&apos;s
