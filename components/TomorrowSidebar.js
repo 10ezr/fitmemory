@@ -44,17 +44,35 @@ export default function TomorrowSidebar() {
   const planFetchInFlight = useRef(false);
   const retryCountRef = useRef(0);
 
+  // Anti-glitch controls
+  const planAbortRef = useRef(null);
+  const lastGoodPlanRef = useRef(null);
+  const lastOkAtRef = useRef(0);
+  const refreshLockRef = useRef(false);
+
+  const deepEqual = (a, b) => {
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+  };
+
   const fetchPlan = useCallback(async (bg = false, forceRefresh = false) => {
     try {
+      // Quiet period after a successful fetch
+      if (!forceRefresh && Date.now() - lastOkAtRef.current < 10000) {
+        return;
+      }
       if (planFetchInFlight.current && !forceRefresh) return;
       planFetchInFlight.current = true;
 
       if (!bg) setLoading(true);
       setError(null);
 
-      console.log("[TomorrowSidebar] Fetching plan, force:", forceRefresh);
+      // Abort previous in-flight request
+      if (planAbortRef.current) {
+        try { planAbortRef.current.abort(); } catch {}
+      }
+      const controller = new AbortController();
+      planAbortRef.current = controller;
 
-      // Use POST for force refresh, GET for normal fetch
       const method = forceRefresh ? "POST" : "GET";
       const url = "/api/tomorrow-workout-ai";
 
@@ -64,8 +82,10 @@ export default function TomorrowSidebar() {
           method,
           cache: "no-store",
           headers: forceRefresh ? { "Content-Type": "application/json" } : {},
+          signal: controller.signal,
         });
       } catch (fetchError) {
+        if (fetchError?.name === "AbortError") return; // aborted due to a newer call
         console.error("[TomorrowSidebar] Network error:", fetchError);
         throw new Error("Network connection failed");
       }
@@ -73,38 +93,27 @@ export default function TomorrowSidebar() {
       const json = await res.json();
 
       if (res.ok) {
-        console.log("[TomorrowSidebar] Plan fetched successfully:", {
-          source: json.source,
-          dayName: json.dayName,
-          exerciseCount: json.workout?.exercises?.length || 0,
-        });
-
-        setData(json);
-        setLastRefresh(new Date());
-        retryCountRef.current = 0;
-      } else {
-        console.error("[TomorrowSidebar] API error:", json);
-        const errorMsg = json.error || "Failed to load workout plan";
-
-        // Show debug info for parsing errors
-        if (json.debug) {
-          console.log("[TomorrowSidebar] Debug info:", json.debug);
+        // Skip state updates if nothing actually changed
+        if (!deepEqual(json, lastGoodPlanRef.current)) {
+          setData(json);
+          lastGoodPlanRef.current = json;
         }
-
+        if (!bg) setLastRefresh(new Date());
+        retryCountRef.current = 0;
+        lastOkAtRef.current = Date.now();
+      } else {
+        const errorMsg = json.error || "Failed to load workout plan";
         setError(errorMsg);
-
-        // Auto-retry for certain errors
         if (errorMsg.includes("parse") && retryCountRef.current < 2) {
           retryCountRef.current++;
-          console.log(
-            `[TomorrowSidebar] Retrying parse error (${retryCountRef.current}/2)`
-          );
           setTimeout(() => fetchPlan(true, true), 2000);
         }
       }
     } catch (e) {
-      console.error("[TomorrowSidebar] Fetch error:", e);
-      setError(e.message || "Failed to load workout plan");
+      if (e?.name !== "AbortError") {
+        console.error("[TomorrowSidebar] Fetch error:", e);
+        setError(e.message || "Failed to load workout plan");
+      }
     } finally {
       planFetchInFlight.current = false;
       if (!bg) setLoading(false);
@@ -121,8 +130,7 @@ export default function TomorrowSidebar() {
           cache: "no-store",
         });
         const json = await res.json();
-        if (JSON.stringify(json) !== JSON.stringify(monthData))
-          setMonthData(json);
+        if (!deepEqual(json, monthData)) setMonthData(json);
       } catch (e) {
         console.error("[TomorrowSidebar] Month fetch error:", e);
       } finally {
@@ -143,7 +151,7 @@ export default function TomorrowSidebar() {
           cache: "no-store",
         });
         const json = await res.json();
-        if (JSON.stringify(json) !== JSON.stringify(goals)) setGoals(json);
+        if (!deepEqual(json, goals)) setGoals(json);
       } catch (e) {
         console.error("[TomorrowSidebar] Goals fetch error:", e);
       } finally {
@@ -158,7 +166,6 @@ export default function TomorrowSidebar() {
     async (targetDays) => {
       try {
         setSavingGoal(true);
-        // optimistic update
         setGoals((prev) => {
           const current = prev?.progress?.current || 0;
           return {
@@ -229,14 +236,17 @@ export default function TomorrowSidebar() {
   }, []);
 
   const scheduleRefresh = useCallback(() => {
+    if (document?.hidden) return; // don't churn in background
     const now = Date.now();
-    if (now - lastFetchedRef.current < 800) return;
+    if (now - lastFetchedRef.current < 1200) return;
     lastFetchedRef.current = now;
-    if (refreshTimerRef.current) return;
+    if (refreshTimerRef.current || refreshLockRef.current) return;
+    refreshLockRef.current = true;
     refreshTimerRef.current = setTimeout(async () => {
       refreshTimerRef.current = null;
       await Promise.all([fetchPlan(true), fetchMonth(true), fetchGoals(true)]);
-    }, 250);
+      refreshLockRef.current = false;
+    }, 1200);
   }, [fetchPlan, fetchMonth, fetchGoals]);
 
   useEffect(() => {
@@ -245,41 +255,63 @@ export default function TomorrowSidebar() {
     fetchMonth();
     fetchGoals();
 
+    // Quiet background throttling on visibility/focus
+    const onVisibility = () => {
+      if (!document.hidden && Date.now() - lastOkAtRef.current > 5 * 60 * 1000) {
+        scheduleRefresh();
+      }
+    };
+    const onFocus = onVisibility;
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+
     // Set up warning notification
     const nextMidnight = new Date();
     nextMidnight.setHours(24, 0, 0, 0);
     const warnAt = new Date(nextMidnight.getTime() - 2 * 60 * 60 * 1000);
     scheduleWarning(warnAt.toISOString());
 
-    // Subscribe to real-time updates
-    const unsubStats = realTimeSync.subscribe(
-      "stats",
-      scheduleRefresh,
-      "TomorrowSidebar"
-    );
-    const unsubStreak = realTimeSync.subscribe(
-      "streak",
-      scheduleRefresh,
-      "TomorrowSidebar"
-    );
+    // Subscribe to real-time updates (restrict to workout-completed to avoid spam)
     const unsubWorkout = realTimeSync.subscribe?.(
       "workout-completed",
       () => {
-        console.log("[TomorrowSidebar] Workout completed, refreshing plan");
         scheduleRefresh();
       },
       "TomorrowSidebar"
     );
 
+    // Optional: if stats/streak events carry payloads, gate by type
+    const unsubStats = realTimeSync.subscribe?.(
+      "stats",
+      (payload) => {
+        if (payload?.type === "workout" || payload?.name === "workout-completed") {
+          scheduleRefresh();
+        }
+      },
+      "TomorrowSidebar"
+    );
+    const unsubStreak = realTimeSync.subscribe?.(
+      "streak",
+      (payload) => {
+        if (payload?.event === "workout-completed") scheduleRefresh();
+      },
+      "TomorrowSidebar"
+    );
+
     return () => {
-      unsubStats();
-      unsubStreak();
+      unsubStats && unsubStats();
+      unsubStreak && unsubStreak();
       unsubWorkout && unsubWorkout();
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
+      if (planAbortRef.current) {
+        try { planAbortRef.current.abort(); } catch {}
+      }
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
     };
   }, [fetchPlan, fetchMonth, fetchGoals, scheduleRefresh, scheduleWarning]);
 
@@ -328,46 +360,43 @@ export default function TomorrowSidebar() {
     })}`;
   }, [data]);
 
+  // Clean and normalize exercises for display
+  const cleanExercises = useMemo(() => {
+    const xs = (data?.workout?.exercises || []).filter(
+      (ex) => ex && typeof ex.name === "string" && ex.name.trim()
+    );
+    const filtered = xs.filter((ex) => {
+      const name = ex.name.trim();
+      // drop if name is just sets×reps
+      if (/^\d+\s*[×x]\s*[\dA-Za-z-]+$/.test(name)) return false;
+      if (name.length > 60) return false;
+      return true;
+    });
+    return filtered.map((ex) => ({
+      ...ex,
+      name: ex.name
+        .replace(/\s+/g, " ")
+        .replace(/^[-•]\s*/, "")
+        .replace(/^\*+|\*+$/g, "")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim(),
+    }));
+  }, [data?.workout?.exercises]);
+
   // Get source badge variant and text
   const sourceInfo = useMemo(() => {
     if (!data?.source) return null;
 
     const sourceMap = {
-      "ai-generated": {
-        text: "Fresh AI",
-        variant: "default",
-        color: "text-green-600",
-      },
-      cache: { text: "Cached", variant: "secondary", color: "text-blue-600" },
-      "context-stable": {
-        text: "Stable",
-        variant: "secondary",
-        color: "text-gray-600",
-      },
-      "rate-limited": {
-        text: "Rate Limited",
-        variant: "destructive",
-        color: "text-orange-600",
-      },
-      throttled: {
-        text: "Throttled",
-        variant: "outline",
-        color: "text-yellow-600",
-      },
-      "error-fallback": {
-        text: "Fallback",
-        variant: "destructive",
-        color: "text-red-600",
-      },
+      "ai-generated": { text: "Fresh AI", variant: "default" },
+      cache: { text: "Cached", variant: "secondary" },
+      "context-stable": { text: "Stable", variant: "secondary" },
+      "rate-limited": { text: "Rate Limited", variant: "destructive" },
+      throttled: { text: "Throttled", variant: "outline" },
+      "error-fallback": { text: "Fallback", variant: "destructive" },
     };
 
-    return (
-      sourceMap[data.source] || {
-        text: data.source,
-        variant: "outline",
-        color: "text-gray-600",
-      }
-    );
+    return sourceMap[data.source] || { text: data.source, variant: "outline" };
   }, [data?.source]);
 
   return (
@@ -379,9 +408,7 @@ export default function TomorrowSidebar() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-primary" />
-                <span className="text-sm font-semibold">
-                  Tomorrow's Workout
-                </span>
+                <span className="text-sm font-semibold">Tomorrow's Workout</span>
               </div>
               <div className="flex items-center gap-2">
                 {lastRefresh && (
@@ -399,9 +426,7 @@ export default function TomorrowSidebar() {
                   disabled={refreshing || loading}
                   className="h-6 w-6 p-0 hover:bg-neutral-800"
                 >
-                  <RefreshCw
-                    className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
-                  />
+                  <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
                 </Button>
               </div>
             </CardTitle>
@@ -434,10 +459,7 @@ export default function TomorrowSidebar() {
                   <Skeleton className="h-4 w-20" />
                   <div className="space-y-2">
                     {[...Array(4)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between items-center"
-                      >
+                      <div key={i} className="flex justify-between items-center">
                         <Skeleton className="h-4 w-32" />
                         <Skeleton className="h-5 w-12" />
                       </div>
@@ -450,9 +472,7 @@ export default function TomorrowSidebar() {
                 <div className="flex items-start gap-2 text-destructive">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="text-sm font-medium mb-1">
-                      Error Loading Workout
-                    </div>
+                    <div className="text-sm font-medium mb-1">Error Loading Workout</div>
                     <div className="text-xs text-muted-foreground">{error}</div>
                   </div>
                 </div>
@@ -461,28 +481,16 @@ export default function TomorrowSidebar() {
                   <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-md border border-yellow-200/20">
                     <div className="flex items-center gap-2 mb-1">
                       <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                      <span className="font-medium text-yellow-600">
-                        Parsing Issue
-                      </span>
+                      <span className="font-medium text-yellow-600">Parsing Issue</span>
                     </div>
-                    <div>
-                      AI response format was unexpected. Usually resolves with a
-                      refresh.
-                    </div>
+                    <div>AI response format was unexpected. Usually resolves with a refresh.</div>
                   </div>
                 )}
 
-                <Button
-                  onClick={handleManualRefresh}
-                  disabled={refreshing}
-                  size="sm"
-                  variant="outline"
-                  className="w-full mt-3"
-                >
+                <Button onClick={handleManualRefresh} disabled={refreshing} size="sm" variant="outline" className="w-full mt-3">
                   {refreshing ? (
                     <>
-                      <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
-                      Retrying...
+                      <RefreshCw className="h-3 w-3 mr-2 animate-spin" />Retrying...
                     </>
                   ) : (
                     <>Try Again</>
@@ -491,36 +499,22 @@ export default function TomorrowSidebar() {
               </div>
             ) : !data?.workout ? (
               <div className="text-center py-6">
-                <div className="text-muted-foreground text-sm mb-3">
-                  No workout data available
-                </div>
-                <Button
-                  onClick={handleManualRefresh}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Activity className="h-3 w-3 mr-2" />
-                  Load Workout
+                <div className="text-muted-foreground text-sm mb-3">No workout data available</div>
+                <Button onClick={handleManualRefresh} size="sm" variant="outline">
+                  <Activity className="h-3 w-3 mr-2" />Load Workout
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
                 {/* Workout Header */}
                 <div>
-                  <h3 className="font-semibold text-foreground mb-2 text-base">
-                    {data.workout.name}
-                  </h3>
+                  <h3 className="font-semibold text-foreground mb-2 text-base">{data.workout.name}</h3>
                   <div className="flex items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className="flex items-center gap-1 text-xs"
-                    >
-                      <Clock className="h-3 w-3" />
-                      {data.workout.estimatedDuration} min
+                    <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3" />{data.workout.estimatedDuration} min
                     </Badge>
                     <Badge variant="outline" className="text-xs">
-                      <Dumbbell className="h-3 w-3 mr-1" />
-                      {data.workout.exercises?.length || 0} exercises
+                      <Dumbbell className="h-3 w-3 mr-1" />{cleanExercises.length} exercises
                     </Badge>
                   </div>
                 </div>
@@ -530,34 +524,20 @@ export default function TomorrowSidebar() {
                 {/* Exercises List */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-medium text-muted-foreground">
-                      Exercises
-                    </h4>
+                    <h4 className="text-sm font-medium text-muted-foreground">Exercises</h4>
                     <div className="h-px bg-border flex-1" />
                   </div>
 
                   <div className="space-y-2">
-                    {(data.workout.exercises || []).map((ex, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800/50 hover:bg-neutral-900/80 transition-colors"
-                      >
+                    {cleanExercises.map((ex, i) => (
+                      <div key={`${ex.name}-${i}`} className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800/50 hover:bg-neutral-900/80 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-semibold text-primary">
-                              {i + 1}
-                            </span>
+                            <span className="text-xs font-semibold text-primary">{i + 1}</span>
                           </div>
-                          <span className="text-sm font-medium text-foreground">
-                            {ex.name}
-                          </span>
+                          <span className="text-sm font-medium text-foreground">{ex.name}</span>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="text-xs font-mono bg-neutral-800/50"
-                        >
-                          {ex.sets}×{ex.reps}
-                        </Badge>
+                        <Badge variant="outline" className="text-xs font-mono bg-neutral-800/50">{ex.sets}×{ex.reps}</Badge>
                       </div>
                     ))}
                   </div>
@@ -584,31 +564,19 @@ export default function TomorrowSidebar() {
               <>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs text-muted-foreground">Progress</div>
-                  <div className="text-xs font-medium text-primary">
-                    {goalCurrent}/{goalTarget}
-                  </div>
+                  <div className="text-xs font-medium text-primary">{goalCurrent}/{goalTarget}</div>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${goalProgressPct}%` }}
-                  />
+                  <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: `${goalProgressPct}%` }} />
                 </div>
-                <div className="text-xs text-muted-foreground text-center mt-1">
-                  {goalProgressPct}% Complete
-                </div>
+                <div className="text-xs text-muted-foreground text-center mt-1">{goalProgressPct}% Complete</div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {[7, 30, 75].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setGoalTarget(d)}
-                      disabled={savingGoal}
-                      className={`text-xs py-1 rounded-md border transition-colors ${
+                    <button key={d} onClick={() => setGoalTarget(d)} disabled={savingGoal} className={`text-xs py-1 rounded-md border transition-colors ${
                         goalTarget === d
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-card text-foreground border-border/50 hover:bg-muted"
-                      }`}
-                    >
+                      }`}>
                       {d} days
                     </button>
                   ))}
@@ -622,8 +590,7 @@ export default function TomorrowSidebar() {
         <Card className="border border-neutral-900/10 dark:border-neutral-900">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-primary" /> {monthName}{" "}
-              {year}
+              <CalendarIcon className="h-4 w-4 text-primary" /> {monthName} {year}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-4">
@@ -640,12 +607,7 @@ export default function TomorrowSidebar() {
               <>
                 <div className="grid grid-cols-7 gap-2 mb-2">
                   {weekDayLabels.map((wd) => (
-                    <div
-                      key={wd}
-                      className="text-[10px] text-muted-foreground text-center font-medium"
-                    >
-                      {wd}
-                    </div>
+                    <div key={wd} className="text-[10px] text-muted-foreground text-center font-medium">{wd}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-2">
@@ -661,41 +623,18 @@ export default function TomorrowSidebar() {
                       : missed
                       ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900"
                       : "bg-muted text-muted-foreground border-border/50";
-                    const Icon = cell.completed
-                      ? CheckCircle2
-                      : missed
-                      ? AlertCircle
-                      : Circle;
+                    const Icon = cell.completed ? CheckCircle2 : missed ? AlertCircle : Circle;
                     return (
-                      <div
-                        key={cell.date}
-                        className="flex flex-col items-center gap-1"
-                      >
-                        <div
-                          className={`w-9 h-9 rounded-md border flex items-center justify-center text-[11px] font-semibold transition-all hover:scale-105 ${stateClass}`}
-                          title={`${cell.date} ${
-                            cell.completed
-                              ? "✓ Completed"
-                              : missed
-                              ? "Missed"
-                              : isToday
-                              ? "Today"
-                              : "Not completed"
-                          }`}
-                        >
+                      <div key={cell.date} className="flex flex-col items-center gap-1">
+                        <div className={`w-9 h-9 rounded-md border flex items-center justify-center text-[11px] font-semibold transition-all hover:scale-105 ${stateClass}`} title={`${cell.date} ${cell.completed ? "✓ Completed" : missed ? "Missed" : isToday ? "Today" : "Not completed"}`}>
                           <Icon className="h-3.5 w-3.5" />
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-medium">
-                          {new Date(cell.date).getDate()}
-                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium">{new Date(cell.date).getDate()}</div>
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-3 text-xs text-muted-foreground">
-                  {(days || []).filter((d) => d.completed).length} of{" "}
-                  {(days || []).length} days completed this month
-                </div>
+                <div className="mt-3 text-xs text-muted-foreground">{(days || []).filter((d) => d.completed).length} of {(days || []).length} days completed this month</div>
               </>
             )}
           </CardContent>
