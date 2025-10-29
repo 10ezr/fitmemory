@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertCircle,
   Clock,
@@ -15,6 +16,8 @@ import {
   Calendar as CalendarIcon,
   RefreshCw,
   AlertTriangle,
+  Activity,
+  Dumbbell,
 } from "lucide-react";
 import realTimeSync from "@/app/services/realTimeSync";
 
@@ -325,18 +328,62 @@ export default function TomorrowSidebar() {
     })}`;
   }, [data]);
 
+  // Get source badge variant and text
+  const sourceInfo = useMemo(() => {
+    if (!data?.source) return null;
+
+    const sourceMap = {
+      "ai-generated": {
+        text: "Fresh AI",
+        variant: "default",
+        color: "text-green-600",
+      },
+      cache: { text: "Cached", variant: "secondary", color: "text-blue-600" },
+      "context-stable": {
+        text: "Stable",
+        variant: "secondary",
+        color: "text-gray-600",
+      },
+      "rate-limited": {
+        text: "Rate Limited",
+        variant: "destructive",
+        color: "text-orange-600",
+      },
+      throttled: {
+        text: "Throttled",
+        variant: "outline",
+        color: "text-yellow-600",
+      },
+      "error-fallback": {
+        text: "Fallback",
+        variant: "destructive",
+        color: "text-red-600",
+      },
+    };
+
+    return (
+      sourceMap[data.source] || {
+        text: data.source,
+        variant: "outline",
+        color: "text-gray-600",
+      }
+    );
+  }, [data?.source]);
+
   return (
     <aside className="flex w-80 xl:w-96 flex-col border-l border-neutral-900/10 dark:border-neutral-900 bg-background">
       <div className="p-4 space-y-4 h-[100svh] overflow-y-auto scrollbar-hide">
         {/* Tomorrow's Workout (AI) */}
         <Card className="border bg-neutral-900/90 border-neutral-900/10 dark:border-neutral-900">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-primary" />
-                <span className="text-sm">Tomorrow's Workout</span>
+                <span className="text-sm font-semibold">
+                  Tomorrow's Workout
+                </span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 {lastRefresh && (
                   <span className="text-xs text-muted-foreground">
                     {lastRefresh.toLocaleTimeString("en-US", {
@@ -350,7 +397,7 @@ export default function TomorrowSidebar() {
                   size="sm"
                   onClick={handleManualRefresh}
                   disabled={refreshing || loading}
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 p-0 hover:bg-neutral-800"
                 >
                   <RefreshCw
                     className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
@@ -358,42 +405,79 @@ export default function TomorrowSidebar() {
                 </Button>
               </div>
             </CardTitle>
-            {data?.dayName && (
-              <div className="text-xs text-muted-foreground">
+
+            {/* Date and Source Row */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-xs text-muted-foreground font-medium">
                 {tomorrowDate}
               </div>
-            )}
+              {sourceInfo && (
+                <Badge variant={sourceInfo.variant} className="text-xs h-5">
+                  {sourceInfo.text}
+                </Badge>
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
+
+          <CardContent className="pt-0">
             {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-20" />
+                  </div>
+                </div>
+                <Separator className="bg-neutral-800" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-20" />
+                  <div className="space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center"
+                      >
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-5 w-12" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : error ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm">Error: {error}</span>
+                <div className="flex items-start gap-2 text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium mb-1">
+                      Error Loading Workout
+                    </div>
+                    <div className="text-xs text-muted-foreground">{error}</div>
+                  </div>
                 </div>
+
                 {error.includes("parse") && (
-                  <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
-                    <AlertTriangle className="h-3 w-3 inline mr-1" />
-                    AI response parsing failed. This usually resolves with a
-                    refresh.
+                  <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-md border border-yellow-200/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                      <span className="font-medium text-yellow-600">
+                        Parsing Issue
+                      </span>
+                    </div>
+                    <div>
+                      AI response format was unexpected. Usually resolves with a
+                      refresh.
+                    </div>
                   </div>
                 )}
+
                 <Button
                   onClick={handleManualRefresh}
                   disabled={refreshing}
                   size="sm"
                   variant="outline"
-                  className="w-full"
+                  className="w-full mt-3"
                 >
                   {refreshing ? (
                     <>
@@ -406,58 +490,72 @@ export default function TomorrowSidebar() {
                 </Button>
               </div>
             ) : !data?.workout ? (
-              <div className="text-center py-4">
-                <div className="text-muted-foreground text-sm">
+              <div className="text-center py-6">
+                <div className="text-muted-foreground text-sm mb-3">
                   No workout data available
                 </div>
                 <Button
                   onClick={handleManualRefresh}
                   size="sm"
                   variant="outline"
-                  className="mt-2"
                 >
+                  <Activity className="h-3 w-3 mr-2" />
                   Load Workout
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Workout Header */}
                 <div>
-                  <h3 className="font-medium text-foreground mb-2">
+                  <h3 className="font-semibold text-foreground mb-2 text-base">
                     {data.workout.name}
                   </h3>
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2">
                     <Badge
                       variant="secondary"
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 text-xs"
                     >
                       <Clock className="h-3 w-3" />
                       {data.workout.estimatedDuration} min
                     </Badge>
-                    {data.source && (
-                      <Badge variant="outline" className="text-xs">
-                        {data.source === "ai-generated"
-                          ? "Fresh AI"
-                          : data.source === "cache"
-                          ? "Cached"
-                          : data.source === "context-stable"
-                          ? "Stable"
-                          : data.source}
-                      </Badge>
-                    )}
+                    <Badge variant="outline" className="text-xs">
+                      <Dumbbell className="h-3 w-3 mr-1" />
+                      {data.workout.exercises?.length || 0} exercises
+                    </Badge>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">
-                    Exercises ({data.workout.exercises?.length || 0})
-                  </h4>
-                  <div className="space-y-1">
+
+                <Separator className="bg-neutral-800/50" />
+
+                {/* Exercises List */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-medium text-muted-foreground">
+                      Exercises
+                    </h4>
+                    <div className="h-px bg-border flex-1" />
+                  </div>
+
+                  <div className="space-y-2">
                     {(data.workout.exercises || []).map((ex, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between p-2 rounded-md bg-muted/50"
+                        className="flex items-center justify-between p-3 rounded-lg bg-neutral-900/60 border border-neutral-800/50 hover:bg-neutral-900/80 transition-colors"
                       >
-                        <span className="text-sm font-medium">{ex.name}</span>
-                        <Badge variant="outline" className="text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-semibold text-primary">
+                              {i + 1}
+                            </span>
+                          </div>
+                          <span className="text-sm font-medium text-foreground">
+                            {ex.name}
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-mono bg-neutral-800/50"
+                        >
                           {ex.sets}×{ex.reps}
                         </Badge>
                       </div>
@@ -505,11 +603,11 @@ export default function TomorrowSidebar() {
                       key={d}
                       onClick={() => setGoalTarget(d)}
                       disabled={savingGoal}
-                      className={`text-xs py-1 rounded-md border ${
+                      className={`text-xs py-1 rounded-md border transition-colors ${
                         goalTarget === d
                           ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card text-foreground border-border/50"
-                      } hover:opacity-90`}
+                          : "bg-card text-foreground border-border/50 hover:bg-muted"
+                      }`}
                     >
                       {d} days
                     </button>
