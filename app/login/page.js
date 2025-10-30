@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Dumbbell } from 'lucide-react'
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -24,16 +23,13 @@ export default function LoginPage() {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        // Redirect to home page on successful login
         router.push('/')
         router.refresh()
       } else {
@@ -56,24 +52,10 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Welcome to FitMemory</CardTitle>
-          <CardDescription>
-            Enter your credentials to access your workout coach
-          </CardDescription>
+          <CardDescription>Enter your password to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
-                required
-                disabled={isLoading}
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
