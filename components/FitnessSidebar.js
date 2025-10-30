@@ -11,6 +11,8 @@ import {
   Settings2,
   Clock,
   Calendar,
+  Home,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,7 +26,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import realTimeSync from "@/app/services/realTimeSync";
 import AdminPanel from "@/components/AdminPanel";
@@ -50,6 +54,22 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
   const [realTimeStats, setRealTimeStats] = useState(stats);
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+
+  // auth state for avatar
+  const [auth, setAuth] = useState({ authenticated: false, user: null });
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!active) return;
+        if (res.ok) setAuth(await res.json());
+      } catch {
+        setAuth({ authenticated: false, user: null });
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   // time/date state – minute-level updates to avoid per-second rerenders
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -100,7 +120,7 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
     const wc = current.weeklyCounts;
     if (!Array.isArray(wc)) return 0;
     let sum = 0;
-    for (let i = 0; i < wc.length; i++) sum += wc[i] || 0;
+    for (let i = 0; i < wc.length; i++) sum += (wc[i] || 0);
     return sum;
   }, [weeklyCountsKey]);
 
@@ -141,6 +161,41 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
           <div className="flex items-center gap-1">
             {!isCollapsed && (
               <>
+                {/* Avatar popover */}
+                {auth.authenticated && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                        <span className="relative inline-block h-8 w-8 overflow-hidden rounded-full">
+                          <Image src="/icon-192x192.png" alt="Avatar" fill sizes="32px" />
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72">
+                      <div className="flex items-center gap-3 pb-3 border-b">
+                        <div className="relative h-10 w-10 rounded-full overflow-hidden">
+                          <Image src="/icon-192x192.png" alt="Avatar" fill sizes="40px" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{auth.user?.id || 'User'}</div>
+                          <Badge variant="secondary" className="text-[10px]">Logged in</Badge>
+                        </div>
+                      </div>
+                      <div className="pt-3 space-y-2">
+                        <Button variant="outline" className="w-full justify-start gap-2" onClick={() => location.assign('/') }>
+                          <Home className="h-4 w-4" /> Home
+                        </Button>
+                        <Button variant="outline" className="w-full justify-start gap-2" onClick={onShowAnalytics}>
+                          <BarChart3 className="h-4 w-4" /> Analytics
+                        </Button>
+                        <Button variant="destructive" className="w-full justify-start gap-2" onClick={async () => { try { await fetch('/api/auth/login', { method: 'DELETE' }); } catch {} location.assign('/login'); }}>
+                          <LogOut className="h-4 w-4" /> Logout
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onShowAnalytics} title="Analytics">
                   <BarChart3 className="h-4 w-4" />
                 </Button>
