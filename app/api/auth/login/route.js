@@ -1,40 +1,80 @@
 import { NextResponse } from 'next/server';
-import { verifyPassword, createSessionToken, setSessionCookie } from '@/lib/auth';
+import { verifyPassword, issueSession, setSessionCookies } from '@/lib/auth';
 
 export async function POST(request) {
   try {
-    const { password } = await request.json();
+    const { username, password } = await request.json();
     
-    if (!password) {
+    // If only password is provided (backwards compatibility)
+    if (!username && password) {
+      // Use the existing verifyPassword function
+      if (!verifyPassword(password)) {
+        // Add a small delay to prevent brute force attacks
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return NextResponse.json(
+          { error: 'Invalid password' },
+          { status: 401 }
+        );
+      }
+    }
+    // If both username and password are provided
+    else if (username && password) {
+      const validUsername = process.env.AUTH_USERNAME || 'admin';
+      
+      // Check username and password
+      if (username !== validUsername || !verifyPassword(password)) {
+        // Add a small delay to prevent brute force attacks
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return NextResponse.json(
+          { error: 'Invalid username or password' },
+          { status: 401 }
+        );
+      }
+    }
+    else {
       return NextResponse.json(
-        { error: 'Password is required' },
+        { error: 'Username and password are required' },
         { status: 400 }
       );
     }
     
-    // Verify password
-    if (!verifyPassword(password)) {
-      // Add a small delay to prevent brute force attacks
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return NextResponse.json(
-        { error: 'Invalid password' },
-        { status: 401 }
-      );
-    }
+    // Create session for authenticated user
+    const user = { id: username || 'user', role: 'user' };
+    const tokens = issueSession(user);
     
-    // Create session
-    const sessionToken = createSessionToken('user');
     const response = NextResponse.json(
       { success: true, message: 'Login successful' },
       { status: 200 }
     );
     
-    // Set session cookie
-    setSessionCookie(response, sessionToken);
+    // Set session cookies
+    setSessionCookies(response, tokens);
     
     return response;
   } catch (error) {
     console.error('Login error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Logout endpoint
+export async function DELETE(request) {
+  try {
+    const response = NextResponse.json(
+      { success: true, message: 'Logout successful' },
+      { status: 200 }
+    );
+    
+    // Clear session cookies using the helper function
+    const { clearSessionCookies } = require('@/lib/auth');
+    clearSessionCookies(response);
+    
+    return response;
+  } catch (error) {
+    console.error('Logout error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
