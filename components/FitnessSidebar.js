@@ -2,10 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  CheckCircle2,
-  XCircle,
-  Circle,
-  Trophy,
   Flame,
   BarChart3,
   Settings2,
@@ -28,12 +24,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
 import realTimeSync from "@/app/services/realTimeSync";
 import AdminPanel from "@/components/AdminPanel";
 
-// Keys we actually render that should gate re-renders
 const RENDER_KEYS = ["dailyStreak", "totalWorkouts", "weeklyCounts"];
 
 function shallowEqualKeys(a = {}, b = {}, keys = []) {
@@ -71,28 +66,23 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
     return () => { active = false; };
   }, []);
 
-  // time/date state – minute-level updates to avoid per-second rerenders
+  // time/date state
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
     const now = new Date();
     setCurrentTime(now);
-
     const msToNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
     let intervalId;
     const timeoutId = setTimeout(() => {
       setCurrentTime(new Date());
       intervalId = setInterval(() => setCurrentTime(new Date()), 60_000);
     }, msToNextMinute);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => { clearTimeout(timeoutId); if (intervalId) clearInterval(intervalId); };
   }, []);
 
-  // real-time subscriptions with equality guard to prevent redundant updates
+  // realtime
   useEffect(() => {
     const applyUpdate = (incoming) => {
       setRealTimeStats((prev) => {
@@ -100,56 +90,21 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
         return shallowEqualKeys(prev || {}, next, RENDER_KEYS) ? prev : next;
       });
     };
-
-    const unsubscribeStats = realTimeSync.subscribe("stats", applyUpdate, "FitnessSidebar");
-    const unsubscribeStreak = realTimeSync.subscribe("streak", applyUpdate, "FitnessSidebar");
-    return () => {
-      unsubscribeStats();
-      unsubscribeStreak();
-    };
+    const un1 = realTimeSync.subscribe("stats", applyUpdate, "FitnessSidebar");
+    const un2 = realTimeSync.subscribe("streak", applyUpdate, "FitnessSidebar");
+    return () => { un1(); un2(); };
   }, []);
 
   const current = realTimeStats || stats || {};
-
   const currentStreak = useMemo(() => Number(current.dailyStreak || 0), [current.dailyStreak]);
   const totalWorkouts = useMemo(() => Number(current.totalWorkouts || 0), [current.totalWorkouts]);
-
-  // Stable dependency derived from weeklyCounts to satisfy lint without complex expressions
   const weeklyCountsKey = Array.isArray(current.weeklyCounts) ? current.weeklyCounts.join(",") : "";
   const weeklyCount = useMemo(() => {
-    const wc = current.weeklyCounts;
-    if (!Array.isArray(wc)) return 0;
-    let sum = 0;
-    for (let i = 0; i < wc.length; i++) sum += (wc[i] || 0);
-    return sum;
+    const wc = current.weeklyCounts; if (!Array.isArray(wc)) return 0; let sum = 0; for (let i = 0; i < wc.length; i++) sum += (wc[i] || 0); return sum;
   }, [weeklyCountsKey]);
 
-  const hourKey = mounted ? currentTime.getHours() : 0;
-  const minuteKey = mounted ? currentTime.getMinutes() : 0;
-  const countdown = useMemo(() => {
-    const now = currentTime || new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const diff = Math.max(0, tomorrow.getTime() - now.getTime());
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return { hours, minutes };
-  }, [hourKey, minuteKey]);
-
-  const formatTime = (date) =>
-    date.toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  const formatDate = (date) =>
-    date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  const formatTime = (date) => date.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  const formatDate = (date) => date.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
   return (
     <Sidebar side="left" className="border-r border-neutral-900/10 dark:border-neutral-900" collapsible="icon">
@@ -161,41 +116,6 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
           <div className="flex items-center gap-1">
             {!isCollapsed && (
               <>
-                {/* Avatar popover */}
-                {auth.authenticated && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                        <span className="relative inline-block h-8 w-8 overflow-hidden rounded-full">
-                          <Image src="/icon-192x192.png" alt="Avatar" fill sizes="32px" />
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-72">
-                      <div className="flex items-center gap-3 pb-3 border-b">
-                        <div className="relative h-10 w-10 rounded-full overflow-hidden">
-                          <Image src="/icon-192x192.png" alt="Avatar" fill sizes="40px" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{auth.user?.id || 'User'}</div>
-                          <Badge variant="secondary" className="text-[10px]">Logged in</Badge>
-                        </div>
-                      </div>
-                      <div className="pt-3 space-y-2">
-                        <Button variant="outline" className="w-full justify-start gap-2" onClick={() => location.assign('/') }>
-                          <Home className="h-4 w-4" /> Home
-                        </Button>
-                        <Button variant="outline" className="w-full justify-start gap-2" onClick={onShowAnalytics}>
-                          <BarChart3 className="h-4 w-4" /> Analytics
-                        </Button>
-                        <Button variant="destructive" className="w-full justify-start gap-2" onClick={async () => { try { await fetch('/api/auth/login', { method: 'DELETE' }); } catch {} location.assign('/login'); }}>
-                          <LogOut className="h-4 w-4" /> Logout
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onShowAnalytics} title="Analytics">
                   <BarChart3 className="h-4 w-4" />
                 </Button>
@@ -259,8 +179,8 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { label: "Hours", value: countdown.hours },
-                          { label: "Minutes", value: countdown.minutes },
+                          { label: "Hours", value: 0 },
+                          { label: "Minutes", value: 0 },
                           { label: "Seconds", value: 0 },
                         ].map((b) => (
                           <div key={b.label} className="bg-card/50 border border-neutral-900/10 dark:border-neutral-900 rounded-lg p-3 text-center">
@@ -300,8 +220,53 @@ function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-neutral-900/10 dark:border-neutral-900 px-4 py-3">
-        {!isCollapsed && <div className="text-xs text-muted-foreground">FitMemory</div>}
+      {/* Fixed avatar section at bottom using shadcn Avatar + Popover */}
+      <SidebarFooter className="border-t border-neutral-900/10 dark:border-neutral-900 px-3 py-2">
+        {auth.authenticated ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start gap-3 px-2 py-2 rounded-lg">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src="/icon-192x192.png" alt="User" />
+                  <AvatarFallback>FM</AvatarFallback>
+                </Avatar>
+                {!isCollapsed && (
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-sm font-medium truncate">{auth.user?.id || 'User'}</div>
+                    <Badge variant="secondary" className="text-[10px]">Logged in</Badge>
+                  </div>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src="/icon-192x192.png" alt="User" />
+                    <AvatarFallback>FM</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{auth.user?.id || 'User'}</div>
+                    <div className="text-xs text-muted-foreground">Role: {auth.user?.role || 'user'}</div>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Button variant="outline" className="justify-start gap-2" onClick={() => location.assign('/') }>
+                    <Home className="h-4 w-4" /> Home
+                  </Button>
+                  <Button variant="outline" className="justify-start gap-2" onClick={onShowAnalytics}>
+                    <BarChart3 className="h-4 w-4" /> Analytics
+                  </Button>
+                  <Button variant="destructive" className="justify-start gap-2" onClick={async () => { try { await fetch('/api/auth/login', { method: 'DELETE' }); } catch {} location.assign('/login'); }}>
+                    <LogOut className="h-4 w-4" /> Logout
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          !isCollapsed && <div className="text-xs text-muted-foreground">FitMemory</div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
