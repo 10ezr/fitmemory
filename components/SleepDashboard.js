@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SkeletonReadiness, SkeletonWeekOverview, SkeletonStat } from '@/components/SkeletonLoader'
 
 export default function SleepDashboard({ isCollapsed = false }) {
   const [sleepData, setSleepData] = useState(null)
@@ -35,21 +35,22 @@ export default function SleepDashboard({ isCollapsed = false }) {
     }
   }
 
-  // Loading state
+  // Enhanced loading state with proper skeletons
   if (loading) {
     return (
       <div className="space-y-4">
         {isCollapsed ? (
           <div className="flex flex-col items-center space-y-2">
-            <Skeleton className="w-12 h-12 rounded-full" />
-            <Skeleton className="w-8 h-4" />
+            <div className="w-12 h-12 rounded-full bg-muted animate-pulse" />
+            <div className="w-8 h-4 bg-muted rounded animate-pulse" />
           </div>
         ) : (
           <>
-            <Skeleton className="h-32 rounded-lg" />
+            <SkeletonReadiness />
+            <SkeletonWeekOverview />
             <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-20" />
-              <Skeleton className="h-20" />
+              <SkeletonStat />
+              <SkeletonStat />
             </div>
           </>
         )}
@@ -63,12 +64,13 @@ export default function SleepDashboard({ isCollapsed = false }) {
       <Card className="border bg-card/30 backdrop-blur-sm">
         <CardContent className="p-6 text-center">
           <CloudMoon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Unable to load sleep data</p>
+          <p className="text-sm text-muted-foreground mb-2">Unable to load sleep data</p>
+          <p className="text-xs text-muted-foreground mb-3">{error}</p>
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={loadSleepData}
-            className="mt-2 text-xs"
+            className="text-xs"
           >
             Try again
           </Button>
@@ -99,7 +101,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center space-y-2">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
           readiness?.overall >= 80 ? 'bg-green-500/20 text-green-500' :
           readiness?.overall >= 60 ? 'bg-yellow-500/20 text-yellow-500' :
           'bg-red-500/20 text-red-500'
@@ -143,7 +145,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
     <div className="space-y-4">
       {/* Sleep Readiness Score */}
       {readiness && (
-        <Card className={`border bg-gradient-to-br ${getReadinessBgColor(readiness.overall)}`}>
+        <Card className={`border bg-gradient-to-br ${getReadinessBgColor(readiness.overall)} transition-all duration-300`}>
           <CardContent className="p-6 text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Zap className="h-5 w-5 text-primary" />
@@ -161,7 +163,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
             
             {/* Quick recommendations */}
             {readiness.recommendations?.length > 0 && (
-              <div className="mt-3 text-xs text-muted-foreground">
+              <div className="mt-3 text-xs text-muted-foreground max-w-xs mx-auto">
                 {readiness.recommendations[0]}
               </div>
             )}
@@ -171,7 +173,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
 
       {/* Last Night Summary */}
       {lastNight && (
-        <Card className="border">
+        <Card className="border transition-all duration-200 hover:shadow-md">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Moon className="h-4 w-4 text-primary" />
@@ -180,7 +182,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
           </CardHeader>
           <CardContent className="pt-0 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="text-center">
+              <div className="text-center p-3 bg-card/50 rounded-lg">
                 <div className="text-2xl font-bold text-primary">
                   {lastNight.totalSleepTime ? 
                     `${Math.floor(lastNight.totalSleepTime / 60)}h ${lastNight.totalSleepTime % 60}m` : 
@@ -189,7 +191,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
                 </div>
                 <div className="text-xs text-muted-foreground">Duration</div>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 bg-card/50 rounded-lg">
                 <div className="text-2xl font-bold text-primary">
                   {lastNight.sleepQuality || '--'}/10
                 </div>
@@ -214,7 +216,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {lastNight.interruptions.slice(0, 3).map((interruption, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">
+                    <Badge key={i} variant="secondary" className="text-xs capitalize">
                       {interruption.reason}
                     </Badge>
                   ))}
@@ -242,7 +244,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
       {/* Sleep Patterns */}
       {stats && (
         <div className="grid grid-cols-2 gap-3">
-          <Card className="border bg-card/30 backdrop-blur-sm">
+          <Card className="border bg-card/30 backdrop-blur-sm transition-all duration-200 hover:bg-card/50">
             <CardContent className="p-4 text-center">
               <div className="text-lg font-bold text-primary">
                 {stats.averageSleepDuration ? 
@@ -265,7 +267,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
             </CardContent>
           </Card>
 
-          <Card className="border bg-card/30 backdrop-blur-sm">
+          <Card className="border bg-card/30 backdrop-blur-sm transition-all duration-200 hover:bg-card/50">
             <CardContent className="p-4 text-center">
               <div className="text-lg font-bold text-primary">
                 {stats.averageSleepQuality ? `${stats.averageSleepQuality.toFixed(1)}` : '--'}/10
@@ -289,7 +291,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
 
       {/* Week Overview */}
       {recentSleep?.length > 0 && (
-        <Card className="border">
+        <Card className="border transition-all duration-200 hover:shadow-md">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
@@ -313,16 +315,19 @@ export default function SleepDashboard({ isCollapsed = false }) {
                       {date.toLocaleDateString('en-US', { weekday: 'narrow' })}
                     </div>
                     <div 
-                      className={`h-8 rounded-sm flex items-center justify-center text-xs font-medium transition-colors ${
+                      className={`h-8 rounded-sm flex items-center justify-center text-xs font-medium transition-all duration-200 hover:scale-105 cursor-help ${
                         dayData 
                           ? dayData.sleepQuality >= 7 
-                            ? 'bg-green-500 text-white' 
+                            ? 'bg-green-500 text-white shadow-sm' 
                             : dayData.sleepQuality >= 5 
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-red-500 text-white'
+                            ? 'bg-yellow-500 text-white shadow-sm'
+                            : 'bg-red-500 text-white shadow-sm'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
                       }`}
-                      title={dayData ? `${dayData.sleepQuality}/10 quality` : 'No data'}
+                      title={dayData ? 
+                        `${dayData.sleepQuality}/10 quality, ${Math.floor((dayData.totalSleepTime || 0) / 60)}h ${(dayData.totalSleepTime || 0) % 60}m` : 
+                        'No sleep data'
+                      }
                     >
                       {dayData ? dayData.sleepQuality : '-'}
                     </div>
@@ -331,7 +336,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
               })}
             </div>
             <div className="text-xs text-muted-foreground text-center mt-2">
-              Sleep quality scores (1-10)
+              Sleep quality scores (1-10) • Hover for details
             </div>
           </CardContent>
         </Card>
@@ -339,7 +344,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
 
       {/* Sleep Debt Warning */}
       {stats?.sleepDebt > 120 && (
-        <Card className="border border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/20">
+        <Card className="border border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/20 transition-all duration-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Eye className="h-4 w-4 text-orange-600" />
@@ -349,7 +354,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
             </div>
             <p className="text-xs text-orange-800 dark:text-orange-200">
               You have {Math.round(stats.sleepDebt / 60)} hours of sleep debt. 
-              Consider going to bed earlier tonight.
+              Consider going to bed earlier tonight for better recovery.
             </p>
           </CardContent>
         </Card>
@@ -357,7 +362,7 @@ export default function SleepDashboard({ isCollapsed = false }) {
 
       {/* Consistency Score */}
       {stats?.consistencyScore !== undefined && (
-        <Card className="border bg-card/30 backdrop-blur-sm">
+        <Card className="border bg-card/30 backdrop-blur-sm transition-all duration-200 hover:bg-card/50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -368,12 +373,12 @@ export default function SleepDashboard({ isCollapsed = false }) {
                 {stats.consistencyScore}/100
               </Badge>
             </div>
-            <Progress value={stats.consistencyScore} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">
+            <Progress value={stats.consistencyScore} className="h-2 mb-2" />
+            <p className="text-xs text-muted-foreground">
               {stats.consistencyScore >= 70 ? 
-                'Great job maintaining consistent sleep times!' :
+                'Great job maintaining consistent sleep times! 🎆' :
                 stats.consistencyScore >= 40 ?
-                'Try to keep more consistent bedtimes.' :
+                'Try to keep more consistent bedtimes for better rest.' :
                 'Focus on establishing a regular sleep schedule.'
               }
             </p>
