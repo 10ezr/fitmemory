@@ -1,19 +1,49 @@
-"use client"
+"use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Flame, BarChart3, Settings2, Clock, Calendar, Home, LogOut } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import {
+  Flame,
+  BarChart3,
+  Settings2,
+  Clock,
+  Calendar,
+  Home,
+  LogOut,
+} from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import realTimeSync from "@/app/services/realTimeSync";
 import AdminPanel from "@/components/AdminPanel";
 import SleepDashboard from "@/components/SleepDashboard";
-import { SkeletonCard, SkeletonStat, SkeletonTimer } from "@/components/SkeletonLoader";
+import {
+  SkeletonCard,
+  SkeletonStat,
+  SkeletonTimer,
+} from "@/components/SkeletonLoader";
 
-const RENDER_KEYS = ["dailyStreak", "totalWorkouts", "weeklyCounts", "lastSuccessAt"];
+const RENDER_KEYS = [
+  "dailyStreak",
+  "totalWorkouts",
+  "weeklyCounts",
+  "lastSuccessAt",
+];
 
 function shallowEqualKeys(a = {}, b = {}, keys = []) {
   for (const k of keys) {
@@ -42,7 +72,11 @@ function msUntil24hFrom(lastMs) {
   return Math.max(0, target - now);
 }
 
-export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics }) {
+export default function FitnessSidebar({
+  stats,
+  onDataChange,
+  onShowAnalytics,
+}) {
   const [realTimeStats, setRealTimeStats] = useState(stats);
   const [loading, setLoading] = useState(!stats);
   const { state } = useSidebar();
@@ -143,7 +177,11 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
 
   if (loading) {
     return (
-      <Sidebar side="left" className="border-r border-neutral-900/10 dark:border-neutral-900" collapsible="icon">
+      <Sidebar
+        side="left"
+        className="border-r border-neutral-900/10 dark:border-neutral-900"
+        collapsible="icon"
+      >
         <SidebarHeader className="border-b border-neutral-900/10 dark:border-neutral-900">
           <div className="flex items-center justify-between px-2 py-1">
             <div className="text-sm font-medium">Loading...</div>
@@ -163,14 +201,24 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
   }
 
   return (
-    <Sidebar side="left" className="border-r border-neutral-900/10 dark:border-neutral-900" collapsible="icon">
+    <Sidebar
+      side="left"
+      className="border-r border-neutral-900/10 dark:border-neutral-900"
+      collapsible="icon"
+    >
       <SidebarHeader className="border-b border-neutral-900/10 dark:border-neutral-900">
         <div className="flex items-center justify-between px-2 py-1">
           {!isCollapsed && <div className="text-sm font-medium">Overview</div>}
           <div className="flex items-center gap-1">
             {!isCollapsed && (
               <>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onShowAnalytics} title="Analytics">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onShowAnalytics}
+                  title="Analytics"
+                >
                   <BarChart3 className="h-4 w-4" />
                 </Button>
                 <Popover open={openAdmin} onOpenChange={setOpenAdmin}>
@@ -181,8 +229,12 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-96 p-0">
                     <div className="border-b px-4 py-3 bg-gradient-to-r from-primary/5 to-primary/10">
-                      <h3 className="font-semibold text-sm">Settings & Admin</h3>
-                      <p className="text-xs text-muted-foreground mt-1">Manage your FitMemory preferences and data</p>
+                      <h3 className="font-semibold text-sm">
+                        Settings & Admin
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Manage your FitMemory preferences and data
+                      </p>
                     </div>
                     <div className="max-h-[70vh] overflow-y-auto scrollbar-hide">
                       <AdminPanel onDataChange={onDataChange} />
@@ -201,21 +253,6 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="space-y-4">
-                {/* Streak card */}
-                <Card className="border bg-card rounded-md">
-                  <CardContent className="p-6 text-center">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <Flame className="h-5 w-5 text-primary" />
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Current Streak</span>
-                    </div>
-                    <div className="text-5xl font-extrabold leading-none">{currentStreak}</div>
-                    <div className="text-sm text-muted-foreground mt-1">days in a row</div>
-                  </CardContent>
-                </Card>
-
-                {/* Sleep Dashboard */}
-                <SleepDashboard isCollapsed={false} />
-
                 {/* Current time with live seconds (12-hour) */}
                 <Card className="border">
                   <CardHeader className="pb-3">
@@ -225,23 +262,36 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold font-mono tracking-wider">{timeFmt.format(now)}</div>
-                      <div className="text-xs text-muted-foreground mt-1 font-medium">{dateFmt.format(now)} (IST)</div>
+                      <div className="text-2xl font-bold font-mono tracking-wider">
+                        {timeFmt.format(now)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 font-medium">
+                        {dateFmt.format(now)} (IST)
+                      </div>
                     </div>
                     <div className="border-t pt-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Calendar className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-muted-foreground">Until Tomorrow</span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Until Tomorrow
+                        </span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { label: "Hours", value: untilTomorrow.hours },
-                          { label: "Minutes", value: untilTomorrow.minutes },
-                          { label: "Seconds", value: untilTomorrow.seconds },
+                          { value: untilTomorrow.hours },
+                          { value: untilTomorrow.minutes },
+                          { value: untilTomorrow.seconds },
                         ].map((b) => (
-                          <div key={b.label} className="bg-card/50 border rounded-lg p-3 text-center">
-                            <div className="text-xl font-bold text-primary font-mono">{String(b.value).padStart(2, "0")}</div>
-                            <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{b.label}</div>
+                          <div
+                            key={b.label}
+                            className="bg-card/50 border rounded-lg p-3 text-center"
+                          >
+                            <div className="text-xl font-bold text-primary font-mono">
+                              {String(b.value).padStart(2, "0")}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                              {b.label}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -250,17 +300,26 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
                       <div className="border-t pt-4">
                         <div className="flex items-center gap-2 mb-3">
                           <Calendar className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium text-muted-foreground">Next reset window</span>
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Next reset window
+                          </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { label: "Hours", value: until24h.hours },
-                            { label: "Minutes", value: until24h.minutes },
-                            { label: "Seconds", value: until24h.seconds },
+                            { value: until24h.hours },
+                            { value: until24h.minutes },
+                            { value: until24h.seconds },
                           ].map((b) => (
-                            <div key={b.label} className="bg-card/50 border rounded-lg p-3 text-center">
-                              <div className="text-xl font-bold text-primary font-mono">{String(b.value).padStart(2, "0")}</div>
-                              <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{b.label}</div>
+                            <div
+                              key={b.label}
+                              className="bg-card/50 border rounded-lg p-3 text-center"
+                            >
+                              <div className="text-xl font-bold text-primary font-mono">
+                                {String(b.value).padStart(2, "0")}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                {b.label}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -268,18 +327,44 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
                     )}
                   </CardContent>
                 </Card>
+                {/* Streak card */}
+                <Card className="border bg-card rounded-md">
+                  <CardContent className="p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Flame className="h-5 w-5 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Current Streak
+                      </span>
+                    </div>
+                    <div className="text-5xl font-extrabold leading-none">
+                      {currentStreak}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      days in a row
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sleep Dashboard */}
+                <SleepDashboard isCollapsed={false} />
 
                 {/* Workout stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border bg-card/30 backdrop-blur-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-primary">{weeklyCount}</div>
-                      <div className="text-xs text-muted-foreground">This Week</div>
+                      <div className="text-xl font-bold text-primary">
+                        {weeklyCount}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        This Week
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="border bg-card/30 backdrop-blur-sm">
                     <CardContent className="p-4 text-center">
-                      <div className="text-xl font-bold text-primary">{totalWorkouts}</div>
+                      <div className="text-xl font-bold text-primary">
+                        {totalWorkouts}
+                      </div>
                       <div className="text-xs text-muted-foreground">Total</div>
                     </CardContent>
                   </Card>
@@ -289,8 +374,15 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
               <div className="flex flex-col items-center space-y-4 pt-6">
                 {/* Collapsed time with seconds (12-hour) */}
                 <div className="w-16 h-14 rounded-lg bg-primary/20 flex flex-col items-center justify-center text-primary font-bold font-mono leading-tight">
-                  <div className="text-sm">{timeFmt.format(now).replace(/:\d{2} /, " ").replace(/ /g, "")}</div>
-                  <div className="text-[10px] opacity-70">{timeFmt.format(now).slice(-2)}</div>
+                  <div className="text-sm">
+                    {timeFmt
+                      .format(now)
+                      .replace(/:\d{2} /, " ")
+                      .replace(/ /g, "")}
+                  </div>
+                  <div className="text-[10px] opacity-70">
+                    {timeFmt.format(now).slice(-2)}
+                  </div>
                 </div>
 
                 {/* Collapsed sleep display */}
@@ -305,14 +397,19 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
         {auth.authenticated ? (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start gap-3 px-2 py-2 rounded-lg">
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 px-2 py-2 rounded-lg"
+              >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="/icon-192x192.png" alt="User" />
                   <AvatarFallback>FM</AvatarFallback>
                 </Avatar>
                 {!isCollapsed && (
                   <div className="flex-1 text-left min-w-0">
-                    <Badge className="text-sm font-medium truncate">{auth.user?.id || "User"}</Badge>
+                    <Badge className="text-sm font-medium truncate">
+                      {auth.user?.id || "User"}
+                    </Badge>
                   </div>
                 )}
               </Button>
@@ -325,15 +422,27 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
                     <AvatarFallback>FM</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{auth.user?.id || "User"}</div>
-                    <div className="text-xs text-muted-foreground">Role: {auth.user?.role || "user"}</div>
+                    <div className="text-sm font-medium truncate">
+                      {auth.user?.id || "User"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Role: {auth.user?.role || "user"}
+                    </div>
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Button variant="outline" className="justify-start gap-2" onClick={() => location.assign("/")}> 
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2"
+                    onClick={() => location.assign("/")}
+                  >
                     <Home className="h-4 w-4" /> Home
                   </Button>
-                  <Button variant="outline" className="justify-start gap-2" onClick={onShowAnalytics}>
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2"
+                    onClick={onShowAnalytics}
+                  >
                     <BarChart3 className="h-4 w-4" /> Analytics
                   </Button>
                   <Button
@@ -353,7 +462,11 @@ export default function FitnessSidebar({ stats, onDataChange, onShowAnalytics })
             </PopoverContent>
           </Popover>
         ) : (
-          !isCollapsed && <div className="text-xs text-muted-foreground text-center">FitMemory</div>
+          !isCollapsed && (
+            <div className="text-xs text-muted-foreground text-center">
+              FitMemory
+            </div>
+          )
         )}
       </SidebarFooter>
     </Sidebar>
