@@ -201,27 +201,7 @@ export default function FitnessSidebar({
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="space-y-4">
-                {/* Existing streak card */}
-                <Card className="border bg-card rounded-md">
-                  <CardContent className="p-6 text-center">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <Flame className="h-5 w-5 text-primary" />
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Current Streak
-                      </span>
-                    </div>
-                    <div className="text-5xl font-extrabold leading-none">
-                      {currentStreak}
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      days in a row
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* NEW: Sleep Dashboard */}
-                <SleepDashboard isCollapsed={false} />
-
+                {" "}
                 {/* Existing time card */}
                 <Card className="border">
                   <CardHeader className="pb-3">
@@ -296,7 +276,25 @@ export default function FitnessSidebar({
                     )}
                   </CardContent>
                 </Card>
-
+                {/* Existing streak card */}
+                <Card className="border bg-card rounded-md">
+                  <CardContent className="p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Flame className="h-5 w-5 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Current Streak
+                      </span>
+                    </div>
+                    <div className="text-5xl font-extrabold leading-none">
+                      {currentStreak}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      days in a row
+                    </div>
+                  </CardContent>
+                </Card>
+                {/* NEW: Sleep Dashboard */}
+                <SleepDashboard isCollapsed={false} />
                 {/* Existing workout stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border bg-card/30 backdrop-blur-sm">
@@ -325,7 +323,7 @@ export default function FitnessSidebar({
                 <div className="w-12 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-sm font-mono">
                   {timeFmt.format(now)}
                 </div>
-                
+
                 {/* NEW: Collapsed sleep display */}
                 <SleepDashboard isCollapsed={true} />
               </div>
