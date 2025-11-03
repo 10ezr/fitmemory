@@ -34,51 +34,129 @@ export default function Home() {
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
 
-  // Render ASAP: load messages first
+  // DEBUG: Track component lifecycle
   useEffect(() => {
+    console.log('FitMemory page mounted/remounted at:', new Date().toISOString())
+    return () => console.log('FitMemory page unmounted at:', new Date().toISOString())
+  }, [])
+
+  // FIX: Single initialization with proper cleanup
+  useEffect(() => {
+    let isMounted = true
     let unsub = () => {}
 
     const boot = async () => {
       try {
-        // 1) fetch messages first for fast first paint
+        console.log('Starting FitMemory initialization...')
+        
+        // 1) Load messages first for fast UI
+        if (!isMounted) return
         const messagesRes = await fetch("/api/messages?limit=20", { cache: "no-store" })
+        if (!isMounted) return
+        
         const messagesData = await messagesRes.json()
-        setMessages(messagesData.messages || [])
-        setInitialLoading(false)
+        if (isMounted) {
+          setMessages(messagesData.messages || [])
+          setInitialLoading(false)
+          console.log('Messages loaded successfully')
+        }
 
-        // 2) defer other data in background (non-blocking)
-        ;(async () => {
-          try {
-            const [statsRes, todaysWorkoutRes, timerRes] = await Promise.all([
-              fetch("/api/stats", { cache: "no-store" }),
-              fetch("/api/todaysWorkout", { cache: "no-store" }),
-              fetch("/api/timer-data", { cache: "no-store" }),
-            ])
+        // 2) Load stats separately to prevent race conditions
+        if (!isMounted) return
+        try {
+          const statsRes = await fetch("/api/stats", { cache: "no-store" })
+          if (isMounted && statsRes.ok) {
             const statsData = await statsRes.json()
             setStats(statsData)
-            if (todaysWorkoutRes.ok) setTodaysWorkout((await todaysWorkoutRes.json()).workout)
-            if (timerRes.ok) setTimerData(((await timerRes.json()).sessions) || [])
+            console.log('Stats loaded successfully')
+          }
+        } catch (e) {
+          console.warn('Stats load failed:', e)
+        }
 
-            // init realtime only after first paint
-            try {
-              await realTimeSync.initialize()
-              realTimeSync.refreshData("stats", true)
-              unsub = realTimeSync.subscribe("stats", (data) => setStats(data), "Home")
-            } catch {}
-          } catch {}
-        })()
+        // 3) Load remaining data
+        if (!isMounted) return
+        try {
+          const [todaysWorkoutRes, timerRes] = await Promise.all([
+            fetch("/api/todaysWorkout", { cache: "no-store" }),
+            fetch("/api/timer-data", { cache: "no-store" })
+          ])
+          
+          if (isMounted) {
+            if (todaysWorkoutRes.ok) {
+              const todaysData = await todaysWorkoutRes.json()
+              setTodaysWorkout(todaysData.workout)
+              console.log('Todays workout loaded')
+            }
+            if (timerRes.ok) {
+              const timerResData = await timerRes.json()
+              setTimerData(timerResData.sessions || [])
+              console.log('Timer data loaded')
+            }
+          }
+        } catch (e) {
+          console.warn('Secondary data load failed:', e)
+        }
 
-        // 3) lazy import notifications
-        import("./services/notificationService").then((m) => setNotificationService(m.default))
+        // 4) Initialize realtime sync only once
+        if (!isMounted) return
+        try {
+          await realTimeSync.initialize()
+          if (!isMounted) return
+          
+          unsub = realTimeSync.subscribe("stats", (data) => {
+            if (isMounted) {
+              console.log('Received realtime stats update')
+              setStats(prev => ({ ...prev, ...data }))
+            }
+          }, "Home")
+          
+          // Only refresh if data is stale
+          const cachedStats = realTimeSync.getCachedData("stats")
+          if (!cachedStats || realTimeSync.isDataStale("stats")) {
+            realTimeSync.refreshData("stats", true)
+          }
+          console.log('RealTime sync initialized')
+        } catch (e) {
+          console.warn('RealTime sync failed:', e)
+        }
+
+        // 5) Lazy load notifications
+        if (isMounted) {
+          import("./services/notificationService")
+            .then((m) => {
+              if (isMounted) {
+                setNotificationService(m.default)
+                console.log('Notification service loaded')
+              }
+            })
+            .catch(() => {})
+        }
+        
+        console.log('FitMemory initialization complete')
       } catch (e) {
-        setInitialLoading(false)
-        setMessages([{ id: "error", role: "system", content: "Welcome to FitMemory! I'm having trouble loading your data, but I'm ready to help with your fitness and sleep journey.", createdAt: new Date().toISOString() }])
+        console.error('FitMemory initialization error:', e)
+        if (isMounted) {
+          setInitialLoading(false)
+          setMessages([{
+            id: "error", 
+            role: "system", 
+            content: "Welcome to FitMemory! I'm having trouble loading your data, but I'm ready to help with your fitness and sleep journey.", 
+            createdAt: new Date().toISOString()
+          }])
+        }
       }
     }
 
     boot()
-    return () => { try { unsub() } catch {} }
-  }, [])
+    
+    // Cleanup function
+    return () => {
+      console.log('Cleaning up FitMemory page...')
+      isMounted = false
+      try { unsub() } catch {}
+    }
+  }, []) // Empty dependency array - only run once
 
   useEffect(() => { scrollToBottom() }, [messages])
 
@@ -88,7 +166,9 @@ export default function Home() {
       const fresh = await res.json()
       setStats(fresh)
       realTimeSync.broadcastDataChange("stats", fresh, "page-refresh")
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Stats refresh failed:', e)
+    }
   }
 
   const sendMessage = async (messageText) => {
