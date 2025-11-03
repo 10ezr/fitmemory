@@ -1,26 +1,26 @@
 import { SleepSession } from '@/models/index.js';
 
 /**
- * Parses natural language sleep descriptions into structured data
- * Similar to workoutParser but for sleep sessions
+ * Enhanced sleep parser with precise timestamp handling
+ * Processes natural language sleep descriptions with exact timing
  */
 class SleepParser {
   constructor() {
-    // Time patterns
+    // Enhanced time patterns with more precision
     this.timePatterns = {
       bedtime: /(?:went to bed|bedtime|bed time|got to bed|in bed)(?:\s+(?:at|around|by)?\s*)([0-9]{1,2}(?:[:.]?[0-9]{2})?\s*(?:am|pm|AM|PM)?)/gi,
       sleepTime: /(?:fell asleep|sleep time|actually slept|dozed off)(?:\s+(?:at|around|by)?\s*)([0-9]{1,2}(?:[:.]?[0-9]{2})?\s*(?:am|pm|AM|PM)?)/gi,
-      wakeTime: /(?:woke up|wake time|awoke|woke)(?:\s+(?:at|around|by)?\s*)([0-9]{1,2}(?:[:.]?[0-9]{2})?\s*(?:am|pm|AM|PM)?)/gi,
-      getUpTime: /(?:got up|get up time|out of bed|left bed)(?:\s+(?:at|around|by)?\s*)([0-9]{1,2}(?:[:.]?[0-9]{2})?\s*(?:am|pm|AM|PM)?)/gi
+      wakeTime: /(?:woke up|wake time|awoke|woke|got up)(?:\s+(?:at|around|by)?\s*)([0-9]{1,2}(?:[:.]?[0-9]{2})?\s*(?:am|pm|AM|PM)?)/gi,
+      currentTime: /(?:right now|just now|currently|at this time)/gi
     };
 
-    // Duration patterns
+    // Duration patterns with more flexibility
     this.durationPatterns = {
       total: /(?:slept|sleep|total sleep)(?:\s+(?:for|about|around)?\s*)([0-9]+(?:\.[0-9]+)?)\s*(?:hours?|hrs?|h)/gi,
       inBed: /(?:in bed|time in bed)(?:\s+(?:for|about|around)?\s*)([0-9]+(?:\.[0-9]+)?)\s*(?:hours?|hrs?|h)/gi
     };
 
-    // Quality patterns
+    // Enhanced quality patterns
     this.qualityPatterns = {
       rating: /(?:quality|sleep quality|rating)(?:\s+(?:was|is)?\s*)([0-9]+(?:\.[0-9]+)?)(?:\/10|\s*(?:out of|of)\s*10)?/gi,
       descriptive: {
@@ -49,35 +49,6 @@ class SleepParser {
       stress: /(?:stress|anxiety|worried|thinking)/gi,
       pain: /(?:pain|ache|discomfort|sore)/gi
     };
-
-    // Environment patterns
-    this.environmentPatterns = {
-      temperature: {
-        hot: /(?:hot|warm|too warm|stuffy|sweaty)/gi,
-        cold: /(?:cold|chilly|too cold|freezing)/gi,
-        comfortable: /(?:comfortable|good temp|perfect)/gi
-      },
-      noise: {
-        quiet: /(?:quiet|silent|peaceful)/gi,
-        moderate: /(?:some noise|moderate|normal)/gi,
-        noisy: /(?:noisy|loud|disruptive)/gi
-      },
-      light: {
-        dark: /(?:dark|pitch black|blackout)/gi,
-        dim: /(?:dim|low light|soft light)/gi,
-        bright: /(?:bright|too bright|light)/gi
-      }
-    };
-
-    // Tag patterns
-    this.tagPatterns = {
-      caffeine: /(?:coffee|caffeine|tea|energy drink|late coffee)/gi,
-      alcohol: /(?:alcohol|wine|beer|drink|drinks)/gi,
-      exercise: /(?:workout|exercise|gym|run|training)/gi,
-      stress: /(?:stress|work|deadline|anxiety)/gi,
-      screen: /(?:phone|tv|screen|laptop|computer)/gi,
-      food: /(?:late meal|dinner|snack|heavy meal)/gi
-    };
   }
 
   /**
@@ -100,7 +71,8 @@ class SleepParser {
       /fell asleep/i,
       /quality.*\d/i,
       /slept.*\d/i,
-      /hours?.*sleep/i
+      /hours?.*sleep/i,
+      /\d{1,2}:\d{2}\s*(?:am|pm)/i // Time patterns
     ];
     
     const messageLower = message.toLowerCase();
@@ -111,68 +83,159 @@ class SleepParser {
   }
 
   /**
-   * Parse natural language sleep description
+   * Parse sleep description with precise timestamp context
    * @param {string} text - Natural language sleep description
-   * @param {Date} date - Date of sleep session (optional, defaults to today)
-   * @returns {Object} Parsed sleep data
+   * @param {Object} currentDateTime - Current timestamp context with timezone info
+   * @returns {Object} Parsed sleep data with proper timezone handling
    */
-  parseSleepDescription(text, date = new Date()) {
+  parseSleepDescription(text, currentDateTime = null) {
     if (!text || typeof text !== 'string') {
       throw new Error('Sleep description is required');
     }
 
+    const now = currentDateTime?.epochMs ? new Date(currentDateTime.epochMs) : new Date();
+    const timezone = currentDateTime?.timezone || 'Asia/Kolkata';
+    
+    console.log(`🕐 Parsing sleep with context time: ${now.toISOString()} (${timezone})`);
+
     const sleepData = {
-      date: this.normalizeDate(date),
-      notes: text.trim()
+      date: this.normalizeToSleepDate(now),
+      notes: text.trim(),
+      timezone,
+      parsedAt: now
     };
 
-    // Parse times
-    const times = this.parseTimes(text);
-    Object.assign(sleepData, times);
-
-    // Parse durations
+    // Parse all components
+    const times = this.parseTimes(text, now);
     const durations = this.parseDurations(text);
-    Object.assign(sleepData, durations);
-
-    // Parse quality
     const quality = this.parseQuality(text);
-    Object.assign(sleepData, quality);
-
-    // Parse mood
     const mood = this.parseMood(text);
-    if (mood) sleepData.mood = mood;
-
-    // Parse interruptions
     const interruptions = this.parseInterruptions(text);
+
+    // Merge all parsed data
+    Object.assign(sleepData, times, durations, quality);
+    if (mood) sleepData.mood = mood;
     if (interruptions.length > 0) sleepData.interruptions = interruptions;
-
-    // Parse environment
-    const environment = this.parseEnvironment(text);
-    if (Object.keys(environment).length > 0) sleepData.environment = environment;
-
-    // Parse tags
-    const tags = this.parseTags(text);
-    if (tags.length > 0) sleepData.tags = tags;
 
     // Calculate derived values
     this.calculateDerivedValues(sleepData);
 
+    console.log(`😴 Parsed sleep data:`, {
+      date: sleepData.date.toISOString(),
+      duration: sleepData.totalSleepTime,
+      quality: sleepData.sleepQuality,
+      bedTime: sleepData.bedTime?.toISOString(),
+      wakeTime: sleepData.wakeTime?.toISOString()
+    });
+
     return sleepData;
   }
 
-  parseTimes(text) {
+  /**
+   * Parse times with current datetime context
+   */
+  parseTimes(text, contextTime) {
     const times = {};
     
-    // Extract times using patterns
+    // Handle "right now" or "currently" for current time
+    if (this.timePatterns.currentTime.test(text)) {
+      // Determine if this is bedtime or wake time based on hour
+      const hour = contextTime.getHours();
+      if (hour >= 20 || hour <= 2) {
+        times.bedTime = new Date(contextTime);
+      } else if (hour >= 5 && hour <= 11) {
+        times.wakeTime = new Date(contextTime);
+      }
+    }
+    
+    // Extract explicit times
     Object.entries(this.timePatterns).forEach(([key, pattern]) => {
+      if (key === 'currentTime') return; // Already handled
+      
       const matches = [...text.matchAll(pattern)];
       if (matches.length > 0) {
         const timeStr = matches[matches.length - 1][1]; // Use last match
-        times[key] = this.parseTimeString(timeStr);
+        const parsedTime = this.parseTimeString(timeStr, contextTime);
+        if (parsedTime) {
+          times[key] = parsedTime;
+        }
       }
     });
 
     return times;
+  }
+
+  /**
+   * Parse time string with context awareness
+   */
+  parseTimeString(timeStr, contextTime) {
+    if (!timeStr) return null;
+    
+    let cleaned = timeStr.toLowerCase().trim();
+    let hours, minutes = 0;
+
+    // Parse time components
+    if (cleaned.includes(':') || cleaned.includes('.')) {
+      const parts = cleaned.split(/[:.]/);
+      hours = parseInt(parts[0]);
+      minutes = parseInt(parts[1]) || 0;
+    } else {
+      hours = parseInt(cleaned.replace(/[^0-9]/g, ''));
+    }
+
+    // Handle AM/PM
+    if (cleaned.includes('pm') && hours !== 12) {
+      hours += 12;
+    } else if (cleaned.includes('am') && hours === 12) {
+      hours = 0;
+    } else if (!cleaned.includes('am') && !cleaned.includes('pm')) {
+      // Smart detection based on context and hour
+      const contextHour = contextTime.getHours();
+      
+      // Bedtime heuristics
+      if (hours >= 8 && hours <= 11) {
+        hours += 12; // Assume PM for bedtime 8-11
+      }
+      // Wake time heuristics
+      else if (hours >= 1 && hours <= 7 && contextHour >= 6) {
+        // Keep as AM for wake times
+      }
+      // If it's currently evening and time is 1-7, probably next morning
+      else if (hours >= 1 && hours <= 7 && contextHour >= 18) {
+        // Keep as AM but for next day
+      }
+    }
+
+    // Create the time object
+    const timeObj = new Date(contextTime);
+    timeObj.setHours(hours, minutes, 0, 0);
+    
+    // Adjust date if necessary
+    // If parsed time is significantly in the future, it was probably yesterday
+    if (timeObj > contextTime && (timeObj - contextTime) > 12 * 60 * 60 * 1000) {
+      timeObj.setDate(timeObj.getDate() - 1);
+    }
+    // If it's a morning wake time and current time is also morning, it's today
+    else if (hours <= 12 && contextTime.getHours() <= 12 && contextTime.getHours() >= 6) {
+      // Keep as today
+    }
+
+    return timeObj;
+  }
+
+  /**
+   * Normalize date to the logical "sleep date" (the night you went to bed)
+   */
+  normalizeToSleepDate(dateTime) {
+    const sleepDate = new Date(dateTime);
+    
+    // If it's early morning (before 12 PM), the sleep date is actually yesterday
+    if (sleepDate.getHours() < 12) {
+      sleepDate.setDate(sleepDate.getDate() - 1);
+    }
+    
+    sleepDate.setHours(0, 0, 0, 0);
+    return sleepDate;
   }
 
   parseDurations(text) {
@@ -183,7 +246,7 @@ class SleepParser {
       if (matches.length > 0) {
         const hours = parseFloat(matches[0][1]);
         if (key === 'total') {
-          durations.totalSleepTime = Math.round(hours * 60); // Convert to minutes
+          durations.totalSleepTime = Math.round(hours * 60);
         } else if (key === 'inBed') {
           durations.totalTimeInBed = Math.round(hours * 60);
         }
@@ -248,7 +311,6 @@ class SleepParser {
         });
       }
     } else if (reasons.length > 0) {
-      // At least one interruption if reasons found
       interruptions.push({
         reason: reasons[0],
         duration: 5
@@ -256,91 +318,6 @@ class SleepParser {
     }
 
     return interruptions;
-  }
-
-  parseEnvironment(text) {
-    const environment = {};
-    
-    // Temperature
-    Object.entries(this.environmentPatterns.temperature).forEach(([temp, pattern]) => {
-      if (pattern.test(text)) {
-        if (temp === 'hot') environment.roomTemp = 26; // Celsius
-        else if (temp === 'cold') environment.roomTemp = 18;
-        else environment.roomTemp = 22;
-      }
-    });
-
-    // Noise level
-    Object.entries(this.environmentPatterns.noise).forEach(([level, pattern]) => {
-      if (pattern.test(text)) {
-        environment.noiseLevel = level;
-      }
-    });
-
-    // Light level
-    Object.entries(this.environmentPatterns.light).forEach(([level, pattern]) => {
-      if (pattern.test(text)) {
-        environment.lightLevel = level;
-      }
-    });
-
-    return environment;
-  }
-
-  parseTags(text) {
-    const tags = [];
-    
-    Object.entries(this.tagPatterns).forEach(([tag, pattern]) => {
-      if (pattern.test(text)) {
-        tags.push(tag);
-      }
-    });
-
-    return tags;
-  }
-
-  parseTimeString(timeStr) {
-    if (!timeStr) return null;
-    
-    // Clean and normalize time string
-    let cleaned = timeStr.toLowerCase().trim();
-    
-    // Handle different formats
-    if (cleaned.includes(':') || cleaned.includes('.')) {
-      const parts = cleaned.split(/[:.]/);
-      let hours = parseInt(parts[0]);
-      const minutes = parseInt(parts[1]) || 0;
-      
-      // Handle AM/PM
-      if (cleaned.includes('pm') && hours !== 12) hours += 12;
-      if (cleaned.includes('am') && hours === 12) hours = 0;
-      
-      const date = new Date();
-      date.setHours(hours, minutes, 0, 0);
-      return date;
-    } else {
-      // Just hour
-      let hours = parseInt(cleaned.replace(/[^0-9]/g, ''));
-      
-      // Smart AM/PM detection for bedtime
-      if (!cleaned.includes('am') && !cleaned.includes('pm')) {
-        // Bedtime heuristics (assume PM for 8-11, AM for wake times 1-7)
-        if (hours >= 8 && hours <= 11) {
-          hours += 12; // PM for bedtime
-        } else if (hours >= 1 && hours <= 7) {
-          // Keep as AM for wake time
-        } else if (hours === 12) {
-          // Keep as noon
-        }
-      } else {
-        if (cleaned.includes('pm') && hours !== 12) hours += 12;
-        if (cleaned.includes('am') && hours === 12) hours = 0;
-      }
-      
-      const date = new Date();
-      date.setHours(hours, 0, 0, 0);
-      return date;
-    }
   }
 
   mapDescriptiveQuality(level) {
@@ -363,8 +340,14 @@ class SleepParser {
     // Estimate total sleep time from bed/wake times if not provided
     if (sleepData.bedTime && sleepData.wakeTime && !sleepData.totalSleepTime) {
       const bedMs = sleepData.bedTime.getTime();
-      const wakeMs = sleepData.wakeTime.getTime();
-      const diffMs = wakeMs > bedMs ? wakeMs - bedMs : (wakeMs + 24*60*60*1000) - bedMs;
+      let wakeMs = sleepData.wakeTime.getTime();
+      
+      // If wake time is before bed time, assume next day
+      if (wakeMs <= bedMs) {
+        wakeMs += 24 * 60 * 60 * 1000;
+      }
+      
+      const diffMs = wakeMs - bedMs;
       sleepData.totalTimeInBed = Math.round(diffMs / (1000 * 60));
       
       // Estimate actual sleep (assume 15 min to fall asleep, subtract interruptions)
@@ -376,25 +359,25 @@ class SleepParser {
       sleepData.totalSleepTime = Math.max(0, estimatedSleep);
     }
 
-    // Set default quality if not provided but we have other indicators
+    // Set default quality if not provided
     if (!sleepData.sleepQuality) {
-      sleepData.sleepQuality = 6; // Default to "okay"
+      sleepData.sleepQuality = 6;
+    }
+
+    // Calculate efficiency if we now have the values
+    if (sleepData.totalSleepTime && sleepData.totalTimeInBed && !sleepData.sleepEfficiency) {
+      sleepData.sleepEfficiency = Math.round((sleepData.totalSleepTime / sleepData.totalTimeInBed) * 100);
     }
   }
 
-  normalizeDate(date) {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-  }
-
   /**
-   * Create or update sleep session in database
+   * Create or update sleep session in database with precise timing
    */
   async saveSleepSession(sleepData) {
     try {
-      // Normalize the date for consistent querying
-      const normalizedDate = this.normalizeDate(sleepData.date);
+      const normalizedDate = sleepData.date;
+      
+      console.log(`💾 Saving sleep session for date: ${normalizedDate.toISOString()}`);
       
       // Check if sleep session already exists for this date
       const existingSession = await SleepSession.findOne({
@@ -409,6 +392,7 @@ class SleepParser {
           updatedAt: new Date()
         });
         await existingSession.save();
+        console.log(`✏️ Updated existing sleep session: ${existingSession._id}`);
         return existingSession;
       } else {
         // Create new session
@@ -417,6 +401,7 @@ class SleepParser {
           date: normalizedDate
         });
         await newSession.save();
+        console.log(`✨ Created new sleep session: ${newSession._id}`);
         return newSession;
       }
     } catch (error) {
