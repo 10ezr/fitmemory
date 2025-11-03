@@ -7,7 +7,7 @@ import ChatMessage from "@/components/ChatMessage"
 import FitnessSidebar from "@/components/FitnessSidebar"
 import TomorrowSidebar from "@/components/TomorrowSidebar"
 import QuickShortcuts from "@/components/QuickShortcuts"
-import BottomNav from "@/components/BottomNav"
+import NavigationHub from "@/components/NavigationHub"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
@@ -295,7 +295,9 @@ export default function Home() {
           )}
         </div>
       </SidebarProvider>
-      <BottomNav />
+      
+      {/* New floating navigation hub */}
+      <NavigationHub />
     </>
   )
 }
