@@ -1,4 +1,4 @@
-import { SleepSession, SleepGoals, SleepPatterns, Workout, Memory } from '../models/index.js';
+import { SleepSession, SleepGoals, SleepPatterns, Workout, Memory } from '@/models/index.js';
 import sleepParser from './sleepParser.js';
 
 /**
@@ -21,20 +21,34 @@ class SleepService {
   }
 
   /**
-   * Check if a message is sleep-related
+   * Check if a message is sleep-related - use parser's static method
    */
   isSleepMessage(message) {
+    // Import the parser's static method logic
     if (!message || typeof message !== 'string') return false;
     
     const sleepKeywords = [
       'sleep', 'slept', 'sleeping', 'bedtime', 'bed time', 'wake up', 'woke up',
-      'insomnia', 'tired', 'exhausted', 'rest', 'nap', 'dream', 'nightmare',
-      'pillow', 'mattress', 'snore', 'toss and turn', 'sleep quality',
-      'sleep duration', 'sleep pattern', 'sleep schedule', 'sleep cycle'
+      'fell asleep', 'went to bed', 'got up', 'tired', 'exhausted', 'rested',
+      'insomnia', 'nightmare', 'dream', 'nap', 'doze', 'drowsy', 'sleepy',
+      'sleep quality', 'sleep duration', 'interrupted sleep'
     ];
     
-    const lowerMessage = message.toLowerCase();
-    return sleepKeywords.some(keyword => lowerMessage.includes(keyword));
+    const logPatterns = [
+      /sleep.*hours?/i,
+      /went to bed/i,
+      /woke up/i,
+      /fell asleep/i,
+      /quality.*\d/i,
+      /slept.*\d/i,
+      /hours?.*sleep/i
+    ];
+    
+    const messageLower = message.toLowerCase();
+    const hasKeyword = sleepKeywords.some(keyword => messageLower.includes(keyword));
+    const matchesPattern = logPatterns.some(pattern => pattern.test(message));
+    
+    return hasKeyword || matchesPattern;
   }
 
   /**
