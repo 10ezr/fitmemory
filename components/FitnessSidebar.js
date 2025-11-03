@@ -31,6 +31,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import realTimeSync from "@/app/services/realTimeSync";
 import AdminPanel from "@/components/AdminPanel";
+import SleepDashboard from "@/components/SleepDashboard";
 
 const RENDER_KEYS = [
   "dailyStreak",
@@ -200,6 +201,7 @@ export default function FitnessSidebar({
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="space-y-4">
+                {/* Existing streak card */}
                 <Card className="border bg-card rounded-md">
                   <CardContent className="p-6 text-center">
                     <div className="flex items-center justify-center gap-2 mb-1">
@@ -217,6 +219,10 @@ export default function FitnessSidebar({
                   </CardContent>
                 </Card>
 
+                {/* NEW: Sleep Dashboard */}
+                <SleepDashboard isCollapsed={false} />
+
+                {/* Existing time card */}
                 <Card className="border">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -291,6 +297,7 @@ export default function FitnessSidebar({
                   </CardContent>
                 </Card>
 
+                {/* Existing workout stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border bg-card/30 backdrop-blur-sm">
                     <CardContent className="p-4 text-center">
@@ -314,9 +321,13 @@ export default function FitnessSidebar({
               </div>
             ) : (
               <div className="flex flex-col items-center space-y-4 pt-6">
+                {/* Existing collapsed time */}
                 <div className="w-12 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-sm font-mono">
                   {timeFmt.format(now)}
                 </div>
+                
+                {/* NEW: Collapsed sleep display */}
+                <SleepDashboard isCollapsed={true} />
               </div>
             )}
           </SidebarGroupContent>

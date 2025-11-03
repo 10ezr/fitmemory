@@ -68,7 +68,7 @@ export default function Home() {
       if (timerRes.ok) setTimerData(((await timerRes.json()).sessions) || [])
     } catch (error) {
       console.error("Failed to load initial data:", error)
-      setMessages([{ id: "error", role: "system", content: "Welcome to FitMemory! I'm having trouble loading your data, but I'm ready to help with your fitness journey.", createdAt: new Date().toISOString() }])
+      setMessages([{ id: "error", role: "system", content: "Welcome to FitMemory! I'm having trouble loading your data, but I'm ready to help with your fitness and sleep journey.", createdAt: new Date().toISOString() }])
     }
   }
 
@@ -101,13 +101,42 @@ export default function Home() {
       const response = await fetch("/api/converse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: messageText }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to send message")
-      const assistantMessage = { id: (Date.now() + 1).toString(), role: "assistant", content: data.reply, createdAt: new Date().toISOString(), workoutLogged: data.workoutLogged, workout: data.workout }
+      
+      const assistantMessage = { 
+        id: (Date.now() + 1).toString(), 
+        role: "assistant", 
+        content: data.reply, 
+        createdAt: new Date().toISOString(), 
+        workoutLogged: data.workoutLogged,
+        sleepLogged: data.sleepLogged,
+        workout: data.workout,
+        sleepSession: data.sleepSession
+      }
       setMessages((p) => [...p, assistantMessage])
 
+      // Handle workout logging
       if (data.workoutLogged) {
         await refreshStatsAndBroadcast()
-        if (data.workout && notificationService) notificationService.workoutCompleted({ totalDuration: data.workout.duration || 0, exercises: data.workout.exercises || [] })
+        if (data.workout && notificationService) {
+          notificationService.workoutCompleted({ 
+            totalDuration: data.workout.duration || 0, 
+            exercises: data.workout.exercises || [] 
+          })
+        }
       }
+
+      // Handle sleep logging
+      if (data.sleepLogged && data.sleepSession) {
+        // Refresh stats as sleep affects readiness
+        await refreshStatsAndBroadcast()
+        if (notificationService && data.sleepSession.quality < 5) {
+          notificationService.showNotification("Sleep Alert", {
+            body: `Poor sleep quality detected (${data.sleepSession.quality}/10). Consider reviewing your sleep environment.`,
+            icon: "/icon-192x192.png"
+          })
+        }
+      }
+      
       if (data.streakUpdate) {
         realTimeSync.broadcastDataChange("streak", data.streakUpdate, "chat-streak-update")
         await refreshStatsAndBroadcast()
@@ -147,9 +176,18 @@ export default function Home() {
                   <div className="text-center py-12">
                     <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">👋</div>
                     <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
-                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">I&apos;m your AI fitness coach. I can help you track workouts, create plans, and stay motivated on your fitness journey.</p>
+                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                      I&apos;m your AI health coach. I can help you track workouts, monitor sleep, create plans, and stay motivated on your wellness journey.
+                    </p>
                     <div className="flex flex-wrap gap-2 justify-center">
-                      {["Create my first workout plan","Log today's exercise","Show my progress"].map((suggestion, i) => (
+                      {[
+                        "Create my first workout plan",
+                        "Log today's exercise", 
+                        "Log last night's sleep",
+                        "How did I sleep this week?",
+                        "Show my progress",
+                        "Check my readiness score"
+                      ].map((suggestion, i) => (
                         <Button key={i} variant="outline" size="sm" onClick={() => insertQuickMessage(suggestion)} className="rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10">{suggestion}</Button>
                       ))}
                     </div>
@@ -181,7 +219,7 @@ export default function Home() {
                   <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
                     <CardContent className="p-3">
                       <div className="flex items-end gap-3">
-                        <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask FitMemory anything about fitness, workouts, or your progress..." className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" rows={1} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }} onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" }} />
+                        <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask FitMemory about fitness, sleep, recovery, or your health goals..." className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" rows={1} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(e) } }} onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" }} />
                         <Button type="submit" disabled={loading || !input.trim()} size="sm" className="shrink-0 rounded-xl px-3 h-9">{loading ? (<div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />) : (<PaperAirplaneIcon className="w-4 h-4" />)}</Button>
                       </div>
                       <div className="flex items-center justify-between mt-2">

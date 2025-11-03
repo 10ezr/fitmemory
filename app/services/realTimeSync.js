@@ -1,6 +1,6 @@
 /**
  * Real-time data synchronization service
- * Manages data flow between all components and ensures consistency
+ * Now supports sleep and health readiness data streams
  */
 
 class RealTimeSyncService {
@@ -15,7 +15,7 @@ class RealTimeSyncService {
   async initialize() {
     if (this.isInitialized) return;
 
-    console.log("Initializing RealTimeSync service...");
+    console.log("Initializing RealTimeSync service with sleep support...");
 
     // Set up periodic data refresh
     this.startPeriodicSync();
@@ -109,6 +109,12 @@ class RealTimeSyncService {
         case "analytics":
           data = await this.fetchAnalytics();
           break;
+        case "sleep":
+          data = await this.fetchSleepData();
+          break;
+        case "readiness":
+          data = await this.fetchReadiness();
+          break;
         default:
           console.warn(`Unknown data type: ${dataType}`);
           return null;
@@ -153,6 +159,20 @@ class RealTimeSyncService {
     return await response.json();
   }
 
+  // NEW: Sleep data fetching
+  async fetchSleepData() {
+    const response = await fetch("/api/sleep?days=7");
+    if (!response.ok) throw new Error("Failed to fetch sleep data");
+    return await response.json();
+  }
+
+  // NEW: Health readiness fetching
+  async fetchReadiness() {
+    const response = await fetch("/api/readiness");
+    if (!response.ok) throw new Error("Failed to fetch readiness");
+    return await response.json();
+  }
+
   // Set up periodic synchronization
   startPeriodicSync() {
     // Sync every 30 seconds
@@ -164,11 +184,16 @@ class RealTimeSyncService {
     setInterval(async () => {
       await this.checkStreakStatus();
     }, 300000);
+
+    // NEW: Check sleep readiness every 10 minutes
+    setInterval(async () => {
+      await this.checkSleepReadiness();
+    }, 600000);
   }
 
   // Sync all data types
   async syncAllData() {
-    const dataTypes = ["stats", "streak", "workouts", "messages"];
+    const dataTypes = ["stats", "streak", "workouts", "messages", "sleep", "readiness"];
 
     for (const dataType of dataTypes) {
       if (this.isDataStale(dataType)) {
@@ -189,6 +214,24 @@ class RealTimeSyncService {
     }
   }
 
+  // NEW: Check sleep readiness and notify
+  async checkSleepReadiness() {
+    try {
+      const readiness = await this.fetchReadiness();
+      if (readiness) {
+        this.notify("readiness", readiness, "periodic-check");
+        
+        // Also refresh sleep data
+        const sleepData = await this.fetchSleepData();
+        if (sleepData) {
+          this.notify("sleep", sleepData, "periodic-check");
+        }
+      }
+    } catch (error) {
+      console.error("Error checking sleep readiness:", error);
+    }
+  }
+
   // Set up event listeners for real-time updates
   setupEventListeners() {
     // Listen for custom events from components
@@ -206,18 +249,24 @@ class RealTimeSyncService {
     window.addEventListener("streakChanged", (event) => {
       this.handleStreakChange(event.detail);
     });
+
+    // NEW: Listen for sleep logging
+    window.addEventListener("sleepLogged", (event) => {
+      this.handleSleepLogged(event.detail);
+    });
   }
 
   // Handle workout completion
   async handleWorkoutCompletion(workoutData) {
     console.log("Workout completed, refreshing data...");
 
-    // Refresh all related data
+    // Refresh all related data including readiness
     await Promise.all([
       this.refreshData("stats", true),
       this.refreshData("streak", true),
       this.refreshData("workouts", true),
       this.refreshData("analytics", true),
+      this.refreshData("readiness", true), // Workout affects readiness
     ]);
 
     // Notify all components
@@ -239,6 +288,21 @@ class RealTimeSyncService {
     this.notify("streakChanged", streakData, "streak-change");
   }
 
+  // NEW: Handle sleep logging
+  async handleSleepLogged(sleepData) {
+    console.log("Sleep logged, refreshing health data...");
+
+    // Refresh all sleep and health-related data
+    await Promise.all([
+      this.refreshData("sleep", true),
+      this.refreshData("readiness", true),
+      this.refreshData("stats", true), // Sleep affects overall stats
+    ]);
+
+    // Notify all components
+    this.notify("sleepLogged", sleepData, "sleep-logging");
+  }
+
   // Broadcast data change to all components
   broadcastDataChange(dataType, data, source) {
     window.dispatchEvent(
@@ -248,14 +312,24 @@ class RealTimeSyncService {
     );
   }
 
-  // Get comprehensive app state
+  // NEW: Trigger sleep data refresh (for external use)
+  async refreshSleepData() {
+    await Promise.all([
+      this.refreshData("sleep", true),
+      this.refreshData("readiness", true)
+    ]);
+  }
+
+  // Get comprehensive app state including sleep
   async getAppState() {
-    const [stats, streak, workouts, messages, analytics] = await Promise.all([
+    const [stats, streak, workouts, messages, analytics, sleep, readiness] = await Promise.all([
       this.fetchStats(),
       this.fetchStreak(),
       this.fetchRecentWorkouts(),
       this.fetchRecentMessages(),
       this.fetchAnalytics(),
+      this.fetchSleepData(),
+      this.fetchReadiness(),
     ]);
 
     return {
@@ -264,6 +338,8 @@ class RealTimeSyncService {
       workouts,
       messages,
       analytics,
+      sleep,
+      readiness,
       lastSync: Date.now(),
     };
   }
