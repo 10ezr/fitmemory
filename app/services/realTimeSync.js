@@ -9,22 +9,47 @@ class RealTimeSyncService {
     this.cache = new Map();
     this.lastUpdate = new Map();
     this.isInitialized = false;
+    this.initPromise = null; // FIX: Prevent multiple concurrent initializations
   }
 
   // Initialize the sync service
   async initialize() {
-    if (this.isInitialized) return;
+    // FIX: Prevent duplicate initialization
+    if (this.isInitialized) {
+      console.log("RealTimeSync already initialized, skipping...");
+      return;
+    }
 
-    console.log("Initializing RealTimeSync service with sleep support...");
+    // FIX: If initialization is in progress, wait for it
+    if (this.initPromise) {
+      console.log("RealTimeSync initialization in progress, waiting...");
+      return await this.initPromise;
+    }
 
-    // Set up periodic data refresh
-    this.startPeriodicSync();
+    // FIX: Create initialization promise to prevent concurrent calls
+    this.initPromise = this._performInitialization();
+    return await this.initPromise;
+  }
 
-    // Set up event listeners for data changes
-    this.setupEventListeners();
+  async _performInitialization() {
+    try {
+      console.log("Initializing RealTimeSync service with sleep support...");
 
-    this.isInitialized = true;
-    console.log("RealTimeSync service initialized");
+      // Set up periodic data refresh
+      this.startPeriodicSync();
+
+      // Set up event listeners for data changes
+      this.setupEventListeners();
+
+      this.isInitialized = true;
+      console.log("RealTimeSync service initialized successfully");
+    } catch (error) {
+      console.error("RealTimeSync initialization failed:", error);
+      this.isInitialized = false;
+      throw error;
+    } finally {
+      this.initPromise = null;
+    }
   }
 
   // Subscribe to data changes
@@ -43,6 +68,7 @@ class RealTimeSyncService {
       const subscribers = this.subscribers.get(dataType);
       if (subscribers) {
         subscribers.delete(subscription);
+        console.log(`Component ${component} unsubscribed from ${dataType}`);
         if (subscribers.size === 0) {
           this.subscribers.delete(dataType);
         }
@@ -175,20 +201,27 @@ class RealTimeSyncService {
 
   // Set up periodic synchronization
   startPeriodicSync() {
+    // FIX: Clear any existing intervals before creating new ones
+    if (this.syncInterval) clearInterval(this.syncInterval);
+    if (this.streakInterval) clearInterval(this.streakInterval);
+    if (this.sleepInterval) clearInterval(this.sleepInterval);
+
     // Sync every 30 seconds
-    setInterval(async () => {
+    this.syncInterval = setInterval(async () => {
       await this.syncAllData();
     }, 30000);
 
     // Check streak status every 5 minutes
-    setInterval(async () => {
+    this.streakInterval = setInterval(async () => {
       await this.checkStreakStatus();
     }, 300000);
 
     // NEW: Check sleep readiness every 10 minutes
-    setInterval(async () => {
+    this.sleepInterval = setInterval(async () => {
       await this.checkSleepReadiness();
     }, 600000);
+
+    console.log("Periodic sync intervals started");
   }
 
   // Sync all data types
@@ -234,26 +267,46 @@ class RealTimeSyncService {
 
   // Set up event listeners for real-time updates
   setupEventListeners() {
+    // FIX: Remove existing listeners before adding new ones
+    if (this.dataChangedHandler) {
+      window.removeEventListener("dataChanged", this.dataChangedHandler);
+    }
+    if (this.workoutCompletedHandler) {
+      window.removeEventListener("workoutCompleted", this.workoutCompletedHandler);
+    }
+    if (this.streakChangedHandler) {
+      window.removeEventListener("streakChanged", this.streakChangedHandler);
+    }
+    if (this.sleepLoggedHandler) {
+      window.removeEventListener("sleepLogged", this.sleepLoggedHandler);
+    }
+
     // Listen for custom events from components
-    window.addEventListener("dataChanged", (event) => {
+    this.dataChangedHandler = (event) => {
       const { dataType, data, source } = event.detail;
       this.notify(dataType, data, source);
-    });
+    };
+    window.addEventListener("dataChanged", this.dataChangedHandler);
 
     // Listen for workout completion
-    window.addEventListener("workoutCompleted", (event) => {
+    this.workoutCompletedHandler = (event) => {
       this.handleWorkoutCompletion(event.detail);
-    });
+    };
+    window.addEventListener("workoutCompleted", this.workoutCompletedHandler);
 
     // Listen for streak changes
-    window.addEventListener("streakChanged", (event) => {
+    this.streakChangedHandler = (event) => {
       this.handleStreakChange(event.detail);
-    });
+    };
+    window.addEventListener("streakChanged", this.streakChangedHandler);
 
     // NEW: Listen for sleep logging
-    window.addEventListener("sleepLogged", (event) => {
+    this.sleepLoggedHandler = (event) => {
       this.handleSleepLogged(event.detail);
-    });
+    };
+    window.addEventListener("sleepLogged", this.sleepLoggedHandler);
+
+    console.log("Event listeners set up");
   }
 
   // Handle workout completion
@@ -344,12 +397,39 @@ class RealTimeSyncService {
     };
   }
 
-  // Cleanup
+  // FIX: Enhanced cleanup method
   destroy() {
+    console.log("Destroying RealTimeSync service...");
+    
+    // Clear intervals
+    if (this.syncInterval) clearInterval(this.syncInterval);
+    if (this.streakInterval) clearInterval(this.streakInterval);
+    if (this.sleepInterval) clearInterval(this.sleepInterval);
+    
+    // Remove event listeners
+    if (this.dataChangedHandler) {
+      window.removeEventListener("dataChanged", this.dataChangedHandler);
+    }
+    if (this.workoutCompletedHandler) {
+      window.removeEventListener("workoutCompleted", this.workoutCompletedHandler);
+    }
+    if (this.streakChangedHandler) {
+      window.removeEventListener("streakChanged", this.streakChangedHandler);
+    }
+    if (this.sleepLoggedHandler) {
+      window.removeEventListener("sleepLogged", this.sleepLoggedHandler);
+    }
+    
+    // Clear data structures
     this.subscribers.clear();
     this.cache.clear();
     this.lastUpdate.clear();
+    
+    // Reset state
     this.isInitialized = false;
+    this.initPromise = null;
+    
+    console.log("RealTimeSync service destroyed");
   }
 }
 
