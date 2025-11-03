@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { PaperAirplaneIcon, ChartBarIcon } from "@heroicons/react/24/solid"
+import { PaperAirplaneIcon } from "@heroicons/react/24/solid"
 import ChatMessage from "@/components/ChatMessage"
 import FitnessSidebar from "@/components/FitnessSidebar"
 import TomorrowSidebar from "@/components/TomorrowSidebar"
 import WorkoutTimer from "@/components/WorkoutTimer"
 import AnalyticsDashboard from "@/components/AnalyticsDashboard"
 import QuickShortcuts from "@/components/QuickShortcuts"
+import BottomNav from "@/components/BottomNav"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
@@ -231,147 +232,151 @@ export default function Home() {
   const insertQuickMessage = (message) => setInput(message)
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="flex h-screen w-full overflow-hidden bg-background">
-        <FitnessSidebar 
-          stats={stats}
-          onDataChange={refreshStatsAndBroadcast}
-          onShowAnalytics={() => setShowAnalytics(true)}
-        />
-        
-        <SidebarInset className="flex-1">
-          <div className="flex h-full flex-col overflow-hidden">
-            {/* Chat column */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide">
-              <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
-                {/* Welcome state with enhanced shortcuts */}
-                {messages.length === 0 && !initialLoading && (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                      👋
+    <>
+      <SidebarProvider defaultOpen={true}>
+        <div className="flex h-screen w-full overflow-hidden bg-background">
+          <FitnessSidebar 
+            stats={stats}
+            onDataChange={refreshStatsAndBroadcast}
+            onShowAnalytics={() => setShowAnalytics(true)}
+          />
+          
+          <SidebarInset className="flex-1">
+            <div className="flex h-full flex-col overflow-hidden">
+              {/* Chat column */}
+              <div className="flex-1 overflow-y-auto scrollbar-hide">
+                <div className="w-full max-w-4xl mx-auto space-y-4 px-4 py-6">
+                  {/* Welcome state with enhanced shortcuts */}
+                  {messages.length === 0 && !initialLoading && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        👋
+                      </div>
+                      <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
+                      <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                        I'm your AI health coach. I can help you track workouts, monitor sleep, create plans, and stay motivated on your wellness journey.
+                      </p>
+                      
+                      {/* Quick shortcuts for new users */}
+                      <QuickShortcuts onSelectShortcut={insertQuickMessage} className="max-w-2xl mx-auto" />
                     </div>
-                    <h2 className="text-xl font-semibold mb-2">Welcome to FitMemory!</h2>
-                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                      I'm your AI health coach. I can help you track workouts, monitor sleep, create plans, and stay motivated on your wellness journey.
-                    </p>
-                    
-                    {/* Quick shortcuts for new users */}
-                    <QuickShortcuts onSelectShortcut={insertQuickMessage} className="max-w-2xl mx-auto" />
-                  </div>
-                )}
+                  )}
 
-                {/* Loading skeleton for initial load */}
-                {initialLoading && (
-                  <SkeletonChatList count={4} />
-                )}
+                  {/* Loading skeleton for initial load */}
+                  {initialLoading && (
+                    <SkeletonChatList count={4} />
+                  )}
 
-                {/* Messages */}
-                {messages.map((message) => (
-                  <ChatMessage key={message.id || message._id} message={message} />
-                ))}
+                  {/* Messages */}
+                  {messages.map((message) => (
+                    <ChatMessage key={message.id || message._id} message={message} />
+                  ))}
 
-                {/* Loading indicator */}
-                {loading && (
-                  <div className="flex justify-start">
-                    <Card className="bg-card border">
-                      <CardContent className="flex items-center space-x-2 p-4">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                          <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                  {/* Loading indicator */}
+                  {loading && (
+                    <div className="flex justify-start">
+                      <Card className="bg-card border">
+                        <CardContent className="flex items-center space-x-2 p-4">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                            <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                          </div>
+                          <span className="text-sm text-muted-foreground ml-2">FitMemory is thinking...</span>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* Input with shortcuts */}
+              <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="w-full max-w-4xl mx-auto p-4">
+                  {/* Quick shortcuts above input */}
+                  {messages.length > 0 && (
+                    <div className="mb-3">
+                      <QuickShortcuts onSelectShortcut={insertQuickMessage} />
+                    </div>
+                  )}
+                  
+                  <form onSubmit={handleSubmit}>
+                    <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
+                      <CardContent className="p-3">
+                        <div className="flex items-end gap-3">
+                          <Textarea 
+                            value={input} 
+                            onChange={(e) => setInput(e.target.value)} 
+                            placeholder="Ask about fitness, sleep, recovery, or your health goals..." 
+                            className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" 
+                            rows={1} 
+                            onKeyDown={(e) => { 
+                              if (e.key === "Enter" && !e.shiftKey) { 
+                                e.preventDefault(); 
+                                handleSubmit(e) 
+                              } 
+                            }} 
+                            onInput={(e) => { 
+                              e.target.style.height = "auto"; 
+                              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" 
+                            }} 
+                          />
+                          <Button 
+                            type="submit" 
+                            disabled={loading || !input.trim()} 
+                            size="sm" 
+                            className="shrink-0 rounded-xl px-3 h-9"
+                          >
+                            {loading ? (
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <PaperAirplaneIcon className="w-4 h-4" />
+                            )}
+                          </Button>
                         </div>
-                        <span className="text-sm text-muted-foreground ml-2">FitMemory is thinking...</span>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="text-xs text-muted-foreground">
+                            Press Enter to send, Shift+Enter for new line
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {input.length}/1000
+                          </Badge>
+                        </div>
                       </CardContent>
                     </Card>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+                  </form>
+                </div>
               </div>
             </div>
+          </SidebarInset>
 
-            {/* Input with shortcuts */}
-            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="w-full max-w-4xl mx-auto p-4">
-                {/* Quick shortcuts above input */}
-                {messages.length > 0 && (
-                  <div className="mb-3">
-                    <QuickShortcuts onSelectShortcut={insertQuickMessage} />
-                  </div>
-                )}
-                
-                <form onSubmit={handleSubmit}>
-                  <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
-                    <CardContent className="p-3">
-                      <div className="flex items-end gap-3">
-                        <Textarea 
-                          value={input} 
-                          onChange={(e) => setInput(e.target.value)} 
-                          placeholder="Ask about fitness, sleep, recovery, or your health goals..." 
-                          className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70" 
-                          rows={1} 
-                          onKeyDown={(e) => { 
-                            if (e.key === "Enter" && !e.shiftKey) { 
-                              e.preventDefault(); 
-                              handleSubmit(e) 
-                            } 
-                          }} 
-                          onInput={(e) => { 
-                            e.target.style.height = "auto"; 
-                            e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px" 
-                          }} 
-                        />
-                        <Button 
-                          type="submit" 
-                          disabled={loading || !input.trim()} 
-                          size="sm" 
-                          className="shrink-0 rounded-xl px-3 h-9"
-                        >
-                          {loading ? (
-                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <PaperAirplaneIcon className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="text-xs text-muted-foreground">
-                          Press Enter to send, Shift+Enter for new line
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {input.length}/1000
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </form>
-              </div>
-            </div>
-          </div>
-        </SidebarInset>
+          {/* Right sidebar */}
+          <TomorrowSidebar />
 
-        {/* Right sidebar */}
-        <TomorrowSidebar />
-
-        {/* Modals */}
-        <WorkoutTimer 
-          workoutPlan={todaysWorkout} 
-          onComplete={(w) => { 
-            setTimerData((p) => [...p, w]); 
-            refreshStatsAndBroadcast(); 
-          }} 
-          onCancel={() => {}} 
-          isActive={showTimer} 
-        />
-        
-        {showAnalytics && (
-          <AnalyticsDashboard 
-            workoutData={stats?.recentWorkouts || []} 
-            streakData={stats?.streakHistory || []} 
-            timerData={timerData} 
-            onClose={() => setShowAnalytics(false)} 
+          {/* Modals */}
+          <WorkoutTimer 
+            workoutPlan={todaysWorkout} 
+            onComplete={(w) => { 
+              setTimerData((p) => [...p, w]); 
+              refreshStatsAndBroadcast(); 
+            }} 
+            onCancel={() => {}} 
+            isActive={showTimer} 
           />
-        )}
-      </div>
-    </SidebarProvider>
+          
+          {showAnalytics && (
+            <AnalyticsDashboard 
+              workoutData={stats?.recentWorkouts || []} 
+              streakData={stats?.streakHistory || []} 
+              timerData={timerData} 
+              onClose={() => setShowAnalytics(false)} 
+            />
+          )}
+        </div>
+      </SidebarProvider>
+      
+      <BottomNav />
+    </>
   )
 }
