@@ -16,7 +16,7 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { SkeletonCard, SkeletonStat } from '@/components/SkeletonLoader'
+import { SkeletonCard } from '@/components/SkeletonLoader'
 
 export default function AdminPanel({ onDataChange }) {
   const [settings, setSettings] = useState({
@@ -59,6 +59,8 @@ export default function AdminPanel({ onDataChange }) {
     loadAllData()
   }, [])
 
+  const toArr = (v, def) => Array.isArray(v) ? v : [v ?? def]
+
   const loadAllData = async () => {
     setLoading(true)
     try {
@@ -69,24 +71,38 @@ export default function AdminPanel({ onDataChange }) {
       ])
       
       if (settingsRes.ok) {
-        const settingsData = await settingsRes.json()
-        setSettings(prev => ({ ...prev, ...settingsData }))
+        const s = await settingsRes.json()
+        setSettings(prev => ({
+          ...prev,
+          notifications: s.notifications ?? prev.notifications,
+          sleepReminders: s.sleepReminders ?? prev.sleepReminders,
+          reminderTime: s.reminderTime ?? prev.reminderTime,
+          workoutNotifications: s.workoutNotifications ?? prev.workoutNotifications,
+          streakWarnings: s.streakWarnings ?? prev.streakWarnings,
+          targetSleepHours: toArr(s.targetSleepHours, 8),
+          sleepQualityGoal: toArr(s.sleepQualityGoal, 7),
+          dataRetention: toArr(s.dataRetention, 365),
+          memoryThreshold: toArr(s.memoryThreshold, 0.7),
+          flexibleMode: s.flexibleMode ?? prev.flexibleMode,
+          weekendFlexibility: s.weekendFlexibility ?? prev.weekendFlexibility,
+          autoBackup: s.autoBackup ?? prev.autoBackup,
+        }))
       }
       
       if (profileRes.ok) {
-        const profileData = await profileRes.json()
+        const p = await profileRes.json()
         setProfile(prev => ({ 
           ...prev, 
-          name: profileData.name || '',
-          weightKg: profileData.weightKg || '',
-          heightCm: profileData.heightCm || '',
-          goals: profileData.goals || ''
+          name: p.name || '',
+          weightKg: p.weightKg || '',
+          heightCm: p.heightCm || '',
+          goals: p.goals || ''
         }))
       }
       
       if (statsRes.ok) {
-        const statsData = await statsRes.json()
-        setStats(statsData)
+        const st = await statsRes.json()
+        setStats(st)
       }
     } catch (error) {
       console.error('Failed to load admin data:', error)
@@ -273,7 +289,7 @@ export default function AdminPanel({ onDataChange }) {
           <div className="space-y-3">
             <Label>Target Sleep Duration: {settings.targetSleepHours[0]} hours</Label>
             <Slider
-              value={settings.targetSleepHours}
+              value={Array.isArray(settings.targetSleepHours) ? settings.targetSleepHours : [Number(settings.targetSleepHours) || 8]}
               onValueChange={(value) => setSettings(prev => ({ ...prev, targetSleepHours: value }))}
               max={12}
               min={6}
@@ -288,7 +304,7 @@ export default function AdminPanel({ onDataChange }) {
           <div className="space-y-3">
             <Label>Sleep Quality Goal: {settings.sleepQualityGoal[0]}/10</Label>
             <Slider
-              value={settings.sleepQualityGoal}
+              value={Array.isArray(settings.sleepQualityGoal) ? settings.sleepQualityGoal : [Number(settings.sleepQualityGoal) || 7]}
               onValueChange={(value) => setSettings(prev => ({ ...prev, sleepQualityGoal: value }))}
               max={10}
               min={1}
@@ -318,8 +334,8 @@ export default function AdminPanel({ onDataChange }) {
           
           <Button 
             onClick={() => saveSection('sleep-goals', { 
-              targetSleepHours: settings.targetSleepHours[0], 
-              sleepQualityGoal: settings.sleepQualityGoal[0],
+              targetSleepHours: Number(settings.targetSleepHours[0]), 
+              sleepQualityGoal: Number(settings.sleepQualityGoal[0]),
               reminderTime: settings.reminderTime,
               sleepReminders: settings.sleepReminders
             })}
@@ -378,7 +394,7 @@ export default function AdminPanel({ onDataChange }) {
         </CardContent>
       </Card>
 
-      {/* Memory & AI Settings */}
+      {/* AI & Memory Settings */}
       <Card className="bg-gradient-to-br from-purple-50/50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -393,7 +409,7 @@ export default function AdminPanel({ onDataChange }) {
           <div className="space-y-3">
             <Label>Memory Storage Threshold: {(settings.memoryThreshold[0] * 100).toFixed(0)}%</Label>
             <Slider
-              value={settings.memoryThreshold}
+              value={Array.isArray(settings.memoryThreshold) ? settings.memoryThreshold : [Number(settings.memoryThreshold) || 0.7]}
               onValueChange={(value) => setSettings(prev => ({ ...prev, memoryThreshold: value }))}
               max={1}
               min={0.3}
@@ -429,7 +445,7 @@ export default function AdminPanel({ onDataChange }) {
           
           <Button 
             onClick={() => saveSection('ai-settings', {
-              memoryThreshold: settings.memoryThreshold[0],
+              memoryThreshold: Number(settings.memoryThreshold[0]),
               flexibleMode: settings.flexibleMode
             })}
             disabled={saving['ai-settings']}
@@ -533,10 +549,7 @@ export default function AdminPanel({ onDataChange }) {
       {/* Quick Stats Footer */}
       <div className="text-center py-2">
         <div className="text-xs text-muted-foreground">
-          Last updated: {new Date().toLocaleTimeString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            hour12: true
-          })}
+          Last updated: {new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })}
         </div>
       </div>
     </div>
