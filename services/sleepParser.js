@@ -1,4 +1,4 @@
-import { SleepSession } from '../models/index.js';
+import { SleepSession } from '@/models/index.js';
 
 /**
  * Parses natural language sleep descriptions into structured data
@@ -78,6 +78,36 @@ class SleepParser {
       screen: /(?:phone|tv|screen|laptop|computer)/gi,
       food: /(?:late meal|dinner|snack|heavy meal)/gi
     };
+  }
+
+  /**
+   * Check if a message contains sleep-related content
+   */
+  static isSleepMessage(message) {
+    if (!message || typeof message !== 'string') return false;
+    
+    const sleepKeywords = [
+      'sleep', 'slept', 'sleeping', 'bedtime', 'bed time', 'wake up', 'woke up',
+      'fell asleep', 'went to bed', 'got up', 'tired', 'exhausted', 'rested',
+      'insomnia', 'nightmare', 'dream', 'nap', 'doze', 'drowsy', 'sleepy',
+      'sleep quality', 'sleep duration', 'interrupted sleep'
+    ];
+    
+    const logPatterns = [
+      /sleep.*hours?/i,
+      /went to bed/i,
+      /woke up/i,
+      /fell asleep/i,
+      /quality.*\d/i,
+      /slept.*\d/i,
+      /hours?.*sleep/i
+    ];
+    
+    const messageLower = message.toLowerCase();
+    const hasKeyword = sleepKeywords.some(keyword => messageLower.includes(keyword));
+    const matchesPattern = logPatterns.some(pattern => pattern.test(message));
+    
+    return hasKeyword || matchesPattern;
   }
 
   /**
@@ -292,13 +322,13 @@ class SleepParser {
       // Just hour
       let hours = parseInt(cleaned.replace(/[^0-9]/g, ''));
       
-      // Smart AM/PM detection
+      // Smart AM/PM detection for bedtime
       if (!cleaned.includes('am') && !cleaned.includes('pm')) {
-        // Bedtime heuristics (assume PM for 8-11, AM for 1-7)
+        // Bedtime heuristics (assume PM for 8-11, AM for wake times 1-7)
         if (hours >= 8 && hours <= 11) {
-          hours += 12; // PM
+          hours += 12; // PM for bedtime
         } else if (hours >= 1 && hours <= 7) {
-          // Keep as AM
+          // Keep as AM for wake time
         } else if (hours === 12) {
           // Keep as noon
         }
@@ -346,7 +376,7 @@ class SleepParser {
       sleepData.totalSleepTime = Math.max(0, estimatedSleep);
     }
 
-    // Set default quality if not provided
+    // Set default quality if not provided but we have other indicators
     if (!sleepData.sleepQuality) {
       sleepData.sleepQuality = 6; // Default to "okay"
     }
@@ -363,19 +393,29 @@ class SleepParser {
    */
   async saveSleepSession(sleepData) {
     try {
+      // Normalize the date for consistent querying
+      const normalizedDate = this.normalizeDate(sleepData.date);
+      
       // Check if sleep session already exists for this date
       const existingSession = await SleepSession.findOne({
-        date: sleepData.date
+        date: normalizedDate
       });
 
       if (existingSession) {
-        // Update existing session
-        Object.assign(existingSession, sleepData);
+        // Update existing session, preserving ID
+        Object.assign(existingSession, {
+          ...sleepData,
+          date: normalizedDate,
+          updatedAt: new Date()
+        });
         await existingSession.save();
         return existingSession;
       } else {
         // Create new session
-        const newSession = new SleepSession(sleepData);
+        const newSession = new SleepSession({
+          ...sleepData,
+          date: normalizedDate
+        });
         await newSession.save();
         return newSession;
       }
