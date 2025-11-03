@@ -4,6 +4,7 @@ import { User, Message, Streak } from "@/models";
 import WorkoutParser from "@/services/workoutParser";
 import GeminiService from "@/services/geminiService";
 import MemoryService from "@/services/memoryService";
+import sleepService from "@/services/sleepService";
 
 function getLocalDateTimePayload() {
   const now = new Date();
@@ -141,7 +142,21 @@ export async function POST(request) {
       await userMessage.save();
     }
 
-    // 2. Auto-parse and persist workout if detected
+    // 2. Check for sleep data and process it
+    let sleepSession = null;
+    let sleepLogged = false;
+    if (wantPersistence && sleepService.isSleepMessage(message)) {
+      try {
+        const sleepResult = await sleepService.logSleep(message);
+        sleepSession = sleepResult.session;
+        sleepLogged = true;
+      } catch (error) {
+        console.error('Error processing sleep data:', error);
+        // Don't fail the whole conversation if sleep logging fails
+      }
+    }
+
+    // 3. Auto-parse and persist workout if detected
     let workout = null;
     if (wantPersistence && WorkoutParser.isWorkoutMessage(message)) {
       const workoutData = WorkoutParser.parseWorkout(message);
@@ -150,7 +165,7 @@ export async function POST(request) {
       }
     }
 
-    // 3. Gather context for Gemini
+    // 4. Gather context for Gemini (including sleep data)
     const user = wantPersistence ? await User.findById("local") : null;
     const context = wantPersistence ? await memoryService.getConversationContext() : { shortTerm: [], recentWorkouts: [], memories: [] };
     const relevantMemories = await memoryService.getLongTermMemories(message, 3, 0.6);
@@ -171,13 +186,25 @@ export async function POST(request) {
       }
     }
 
-    // 4. Generate Gemini response
+    // Get sleep readiness for context
+    let sleepReadiness = null;
+    if (wantPersistence) {
+      try {
+        sleepReadiness = await sleepService.calculateHealthReadiness();
+      } catch (error) {
+        console.error('Error getting sleep readiness:', error);
+      }
+    }
+
+    // 5. Enhanced Gemini context with sleep data
     const geminiContext = {
       user,
       recentWorkouts: context.recentWorkouts,
       memories: relevantMemories,
       lastMessages: context.shortTerm,
       workoutJustLogged: workout,
+      sleepJustLogged: sleepSession,
+      sleepReadiness: sleepReadiness,
       streakData: streakData,
       currentDateTime: getLocalDateTimePayload(),
     };
@@ -197,12 +224,12 @@ export async function POST(request) {
       actions = response.actions;
     }
 
-    // 5. Process any actions returned by Gemini
+    // 6. Process any actions returned by Gemini
     if (actions && actions.length > 0) {
       await memoryService.processActions(actions);
     }
 
-    // 6. Handle workout completion and streak management
+    // 7. Handle workout completion and streak management
     let streakUpdate = null;
     let streakStatus = null;
 
@@ -237,32 +264,47 @@ export async function POST(request) {
       streakUpdate = await incrementStreak();
     }
 
-    // 7. Persist assistant message
+    // 8. Persist assistant message
     const assistantMessage = new Message({
       role: "assistant",
       content: reply,
-      meta: { actions, workoutLogged: !!workout, streakIncremented: !!streakUpdate },
+      meta: { 
+        actions, 
+        workoutLogged: !!workout, 
+        sleepLogged: sleepLogged,
+        streakIncremented: !!streakUpdate 
+      },
     });
     await assistantMessage.save();
 
-    // 8. Return response
+    // 9. Return enhanced response with sleep data
     return NextResponse.json({
       reply,
       actions: actions || [],
       workoutLogged: !!workout,
+      sleepLogged: sleepLogged,
       streakUpdate: streakUpdate,
       streakStatus: streakStatus,
       workout: workout ? { id: workout._id, name: workout.name, exercises: workout.exercises.length } : null,
+      sleepSession: sleepSession ? {
+        id: sleepSession._id,
+        quality: sleepSession.sleepQuality,
+        duration: sleepSession.totalSleepTime,
+        summary: sleepService.generateSessionSummary ? await sleepService.generateSessionSummary(sleepSession) : null
+      } : null,
+      sleepReadiness: sleepReadiness,
       currentDateTime: getLocalDateTimePayload(),
     });
   } catch (error) {
     console.error("Conversation error:", error);
     // Fallback offline response so chat works without DB/API
     return NextResponse.json({
-      reply: "I'm not connected to the database yet, but I can still chat! Tell me about your last workout.",
+      reply: "I'm not connected to the database yet, but I can still chat! Tell me about your last workout or how you slept.",
       actions: [],
       workoutLogged: false,
+      sleepLogged: false,
       workout: null,
+      sleepSession: null,
     });
   }
 }
