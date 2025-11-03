@@ -10,6 +10,60 @@ function tightenReply(text) {
   return text;
 }
 
+// Smart message categorization for contextual responses
+function categorizeMessage(message, context = {}) {
+  const msg = message.toLowerCase().trim();
+  
+  // Sleep-related patterns
+  const sleepPatterns = {
+    goingToBed: /^(i am|i'm|im|going to|gonna|about to).*(sleep|bed|rest)|^(sleep|bed|bedtime|sleepy|tired)( now)?$/i,
+    wakeUp: /^(just|i).*(woke up|awake|up|morning)|^(good morning|wake up|awake now)$/i,
+    sleepUpdate: /slept.*(hours?|well|badly|good|bad)|got.*(hours?|sleep)|sleep quality/i,
+    sleepQuestion: /how.*(sleep|rest)|sleep.*(better|tips|help)/i
+  };
+  
+  // Workout-related patterns
+  const workoutPatterns = {
+    completed: /(workout|exercise|training|session).*(done|finished|complete)|^(done|finished|complete).*(workout|exercise|training)/i,
+    starting: /^(starting|about to|gonna|going to).*(workout|exercise|training|gym)/i,
+    question: /what.*(workout|exercise|training)|workout.*(today|plan|should)/i,
+    tired: /tired|exhausted|worn out|beat/i
+  };
+  
+  // General patterns
+  const generalPatterns = {
+    greeting: /^(hi|hello|hey|good morning|good evening|sup|what's up|how are you)$/i,
+    thanks: /^(thanks|thank you|thx|appreciate|cheers)$/i,
+    yes: /^(yes|yeah|yep|sure|ok|okay|alright)$/i,
+    no: /^(no|nope|nah|not really)$/i,
+    casual: msg.split(' ').length <= 3 && !/\?/.test(msg)
+  };
+  
+  // Check each category
+  for (const [type, pattern] of Object.entries(sleepPatterns)) {
+    if (pattern.test(message)) return { category: 'sleep', type, isCasual: true };
+  }
+  
+  for (const [type, pattern] of Object.entries(workoutPatterns)) {
+    if (pattern.test(message)) return { category: 'workout', type };
+  }
+  
+  for (const [type, pattern] of Object.entries(generalPatterns)) {
+    if (pattern.test(message)) return { category: 'general', type, isCasual: true };
+  }
+  
+  // Default: determine if it's a detailed question or casual statement
+  const isQuestion = message.includes('?') || /^(how|what|when|where|why|which|should|can|could|would|will|do|does)/i.test(message);
+  const isLong = message.split(' ').length > 8;
+  
+  return {
+    category: 'general',
+    type: isQuestion ? 'question' : 'statement',
+    isCasual: !isQuestion && !isLong,
+    isDetailed: isQuestion && isLong
+  };
+}
+
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY;
@@ -28,7 +82,8 @@ class GeminiService {
     let response, actions = null, embedding = null;
     try {
       if (this.model && this.apiKey) {
-        const systemPrompt = this.buildSystemPrompt(context, prompt);
+        const messageCategory = categorizeMessage(prompt, context);
+        const systemPrompt = this.buildSystemPrompt(context, prompt, messageCategory);
         const fullPrompt = `${systemPrompt}\n\nEzra: ${prompt}`;
         const result = await this.model.generateContent(fullPrompt);
         const rawResponse = result.response.text && result.response.text();
@@ -36,7 +91,7 @@ class GeminiService {
         actions = this.parseActions(rawResponse);
         embedding = await this.generateEmbedding(rawResponse);
         response = tightenReply(this.cleanResponse(rawResponse));
-        await this.persistResponse({ prompt: fullPrompt, responseRaw: rawResponse, actions, embedding, metadata: { model: "gemini-pro", context } });
+        await this.persistResponse({ prompt: fullPrompt, responseRaw: rawResponse, actions, embedding, metadata: { model: "gemini-pro", context, messageCategory } });
       } else {
         response = await this.getOfflineResponse(prompt, context);
       }
@@ -48,7 +103,7 @@ class GeminiService {
     }
   }
 
-  buildSystemPrompt(context, userPrompt = "") {
+  buildSystemPrompt(context, userPrompt = "", messageCategory = {}) {
     const now = new Date();
     const istMs = now.getTime() + 330 * 60 * 1000;
     const ist = new Date(istMs);
@@ -60,43 +115,43 @@ class GeminiService {
     const p = (userPrompt || "").toLowerCase();
     const askToday = /(today('|)s|todays|today|for today|what'?s today|today workout|today session)/i.test(p) && /workout|session|plan/.test(p);
     
-    // Detect sleep intent
-    const sleepKeywords = ['sleep', 'slept', 'bedtime', 'wake up', 'woke up', 'tired', 'rest', 'insomnia'];
-    const isSleepRelated = sleepKeywords.some(keyword => p.includes(keyword));
-
-    // High-priority rule block first
     let systemPrompt = `Current date/time (India): ${istHuman} (IST)\nISO timestamp IST: ${istIso}\nUse the exact date/time above when referring to today/tomorrow/day names.\n\n`;
+
+    // Response style based on message category
+    if (messageCategory.isCasual || messageCategory.category === 'sleep' && messageCategory.type === 'goingToBed') {
+      systemPrompt += `RESPONSE STYLE: CASUAL & BRIEF\n- User sent a casual/simple message: "${userPrompt}"\n- Respond naturally and briefly (1-2 sentences max)\n- Be supportive but don't lecture or over-explain\n- Match their energy level - if they're casual, be casual\n- No bullet points, lists, or detailed explanations unless specifically asked\n- Examples of good responses: "Sleep well! Tomorrow's a new day 💪", "Nice work! How did it feel?", "Good morning! How'd you sleep?"\n\n`;
+    } else if (messageCategory.isDetailed || askToday) {
+      systemPrompt += `RESPONSE STYLE: DETAILED & HELPFUL\n- User asked a detailed question or requested specific info\n- Provide comprehensive, structured response\n- Use bullet points, headings, and formatting as needed\n- Include actionable advice and specific recommendations\n\n`;
+    } else {
+      systemPrompt += `RESPONSE STYLE: BALANCED\n- Respond appropriately to the context and question\n- Be helpful but not overwhelming\n- 2-4 sentences typically unless more detail is specifically needed\n\n`;
+    }
 
     if (askToday) {
       systemPrompt += `You are a fitness coach. If the user asks for today's workout, respond conversationally with a compact, actionable workout card — not Q/A format.\nOutput this exact structure (Markdown):\n\n## Today's Workout — <focus/name>\n**Warm-up (3–5 min):** short bullets\n**Main (30–45 min):** list exercises with sets × reps and rest (e.g., 3×10, Rest 60s)\n**Finisher (optional):** 1 line if useful\n**Notes:** 1–2 short form cues or substitutions\n\nRules:\n- No sections named Question/Answer/Why It Matters.\n- Keep tone direct and conversational.\n- Keep only what's needed to start training now.\n- Do not generate tomorrow's plan here.\n- If a plan was just suggested, also include an action object only in hidden JSON form: {"action":"workout_plan_suggested","startTimerHint":true}.\n`;
     } else {
-      systemPrompt += `You are an intelligent and experienced **holistic health coach AI** who understands both FITNESS and SLEEP.\n\nYour expertise covers:\n- Workout planning and technique\n- Sleep optimization and recovery\n- How sleep affects workout performance\n- Integrated wellness coaching\n\nWrite in clean Markdown with headings, bullets, and (---) dividers when helpful.\nUse plan formats when full info is provided, quick direct answers for small questions, adjustments for changes, motivation when asked. Avoid filler and Q/A templates unless explicitly requested.\n\n`;
+      systemPrompt += `You are an intelligent and experienced **holistic health coach AI** who understands both FITNESS and SLEEP.\n\nYour expertise covers:\n- Workout planning and technique\n- Sleep optimization and recovery\n- How sleep affects workout performance\n- Integrated wellness coaching\n\nWrite in clean Markdown with headings, bullets, and (---) dividers when helpful for DETAILED responses only.\nFor casual messages, respond naturally and conversationally without excessive formatting.\n\n`;
     }
 
-    // Append context
+    // Context data (same as before but only include if relevant to response type)
     const { user, recentWorkouts, memories, lastMessages, workoutJustLogged, sleepJustLogged, sleepReadiness, streakData } = context;
     
     if (user) systemPrompt += `\nUSER PROFILE: ${JSON.stringify(user)}`;
     
-    // Sleep readiness context
-    if (sleepReadiness) {
-      systemPrompt += `\n\nSLEEP & READINESS STATUS:\n- Overall Readiness: ${sleepReadiness.overall}/100 (${sleepReadiness.status})\n- Sleep Component: ${sleepReadiness.components?.sleep || 'N/A'}/100\n- Recovery Component: ${sleepReadiness.components?.recovery || 'N/A'}/100\n- Consistency: ${sleepReadiness.components?.consistency || 'N/A'}/100`;
+    // Only include sleep readiness for detailed responses or sleep-related messages
+    if (sleepReadiness && (messageCategory.category === 'sleep' || !messageCategory.isCasual)) {
+      systemPrompt += `\n\nSLEEP & READINESS STATUS:\n- Overall Readiness: ${sleepReadiness.overall}/100 (${sleepReadiness.status})\n- Sleep Component: ${sleepReadiness.components?.sleep || 'N/A'}/100`;
       
-      if (sleepReadiness.lastNightSleep) {
+      if (sleepReadiness.lastNightSleep && messageCategory.category === 'sleep') {
         const sleep = sleepReadiness.lastNightSleep;
         const hours = Math.floor(sleep.totalSleepTime / 60);
         const mins = sleep.totalSleepTime % 60;
         systemPrompt += `\n- Last Night: ${hours}h ${mins}m, Quality: ${sleep.sleepQuality}/10`;
-        if (sleep.sleepEfficiency) systemPrompt += `, Efficiency: ${sleep.sleepEfficiency}%`;
-      }
-      
-      if (sleepReadiness.recommendations?.length > 0) {
-        systemPrompt += `\n- Key Recommendations: ${sleepReadiness.recommendations.slice(0, 2).join('; ')}`;
       }
     }
     
-    if (recentWorkouts && recentWorkouts.length > 0) {
-      systemPrompt += `\n\nRECENT TRAINING:\n${recentWorkouts.map((w) => `${new Date(w.date).toLocaleDateString()}: ${w.exercises.map((e) => `${e.name} ${e.sets}x${e.reps}${e.weightKg ? ` @${e.weightKg}kg` : ""}`).join(", ")}`).join("\n")}`;
+    // Include recent workouts only for workout-related or detailed queries
+    if (recentWorkouts && recentWorkouts.length > 0 && (messageCategory.category === 'workout' || !messageCategory.isCasual)) {
+      systemPrompt += `\n\nRECENT TRAINING:\n${recentWorkouts.slice(0, 3).map((w) => `${new Date(w.date).toLocaleDateString()}: ${w.exercises.map((e) => `${e.name} ${e.sets}x${e.reps}${e.weightKg ? ` @${e.weightKg}kg` : ""}`).join(", ")}`).join("\n")}`;
     }
     
     if (workoutJustLogged) {
@@ -110,20 +165,34 @@ class GeminiService {
       if (sleepJustLogged.notes) systemPrompt += ` (${sleepJustLogged.notes})`;
     }
     
-    if (memories && memories.length > 0) {
-      systemPrompt += `\n\nPRIOR NOTES:\n${memories.map((m) => `${m.content}`).join("\n")}`;
+    // Only include memories for non-casual responses
+    if (memories && memories.length > 0 && !messageCategory.isCasual) {
+      systemPrompt += `\n\nPRIOR NOTES:\n${memories.slice(0, 2).map((m) => `${m.content}`).join("\n")}`;
     }
     
+    // Always include recent conversation for context
     if (lastMessages && lastMessages.length > 0) {
-      systemPrompt += `\n\nRECENT CONVERSATION:\n${lastMessages.map((m) => `${m.role === "user" ? "User" : "Coach"}: ${m.content}`).join("\n")}`;
+      systemPrompt += `\n\nRECENT CONVERSATION:\n${lastMessages.slice(-2).map((m) => `${m.role === "user" ? "Ezra" : "Coach"}: ${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}`).join("\n")}`;
     }
     
-    if (streakData) {
-      systemPrompt += `\n\nSTREAK DATA:\nCurrent: ${streakData.currentStreak} days\nBest: ${streakData.longestStreak} days\nLast workout: ${streakData.lastWorkoutDate ? new Date(streakData.lastWorkoutDate).toLocaleDateString() : "Never"}`;
+    if (streakData && (messageCategory.category === 'workout' || !messageCategory.isCasual)) {
+      systemPrompt += `\n\nSTREAK DATA:\nCurrent: ${streakData.currentStreak} days\nBest: ${streakData.longestStreak} days`;
     }
 
-    // Add sleep-fitness integration guidelines
-    systemPrompt += `\n\nSLEEP-FITNESS INTEGRATION GUIDELINES:\n- If readiness < 60: Recommend lighter workouts, focus on recovery\n- If readiness 60-79: Moderate intensity, listen to body\n- If readiness 80+: User is primed for intense training\n- Always consider sleep quality when suggesting workout intensity\n- If poor sleep detected: Suggest recovery-focused activities\n- If excellent sleep: Encourage challenging workouts\n- Provide sleep tips when workout recovery might benefit\n- Address sleep issues that could impact fitness goals\n\nRESPONSE GUIDELINES:\n- Be supportive and knowledgeable about both fitness AND sleep\n- Make connections between sleep and workout performance\n- Give actionable advice for both domains\n- If user mentions sleep, acknowledge and provide insights\n- If user mentions fatigue/tiredness, consider sleep factors\n- Maintain encouraging and holistic health perspective`;
+    // Specific response patterns for common messages
+    if (messageCategory.category === 'sleep' && messageCategory.type === 'goingToBed') {
+      systemPrompt += `\n\nSPECIFIC INSTRUCTION: User is going to sleep. Respond with a brief, supportive goodnight message. Keep it to 1-2 sentences. Be encouraging about their rest and maybe mention tomorrow briefly. DO NOT lecture about sleep benefits or provide detailed advice unless specifically requested.`;
+    }
+    
+    if (messageCategory.category === 'workout' && messageCategory.type === 'completed') {
+      systemPrompt += `\n\nSPECIFIC INSTRUCTION: User completed a workout. Congratulate them briefly and ask how it felt or acknowledge their effort. Keep it to 1-2 sentences unless they want more detail.`;
+    }
+    
+    if (messageCategory.category === 'general' && messageCategory.type === 'greeting') {
+      systemPrompt += `\n\nSPECIFIC INSTRUCTION: User is greeting you. Respond with a friendly greeting and maybe ask how they're doing or what they're planning. Keep it natural and brief.`;
+    }
+
+    systemPrompt += `\n\nIMPORTANT RULES:\n- Match the user's communication style and energy\n- If they're brief/casual, be brief/casual\n- If they ask detailed questions, give detailed answers\n- Don't over-explain unless specifically asked\n- Use natural language, avoid corporate/coach speak\n- Be supportive but not preachy\n- Remember context but don't repeat information unnecessarily`;
 
     return systemPrompt;
   }
@@ -169,22 +238,25 @@ class GeminiService {
     } catch (error) { 
       console.error("Error persisting Gemini response:", error); 
       throw error; 
-    } 
+    }
   }
   
   async getOfflineResponse(prompt, context = {}) { 
-    // Enhanced offline responses with sleep awareness
-    const p = prompt.toLowerCase();
+    const messageCategory = categorizeMessage(prompt, context);
     
-    if (p.includes('sleep') || p.includes('tired') || p.includes('rest')) {
-      return "I'm offline right now, but sleep is crucial for recovery and performance! When I'm back online, I can help you track your sleep patterns and optimize your rest for better workouts. Check your connection and try again.";
+    if (messageCategory.category === 'sleep' && messageCategory.type === 'goingToBed') {
+      return "Sleep well! Rest up for tomorrow 💤";
     }
     
-    if (p.includes('readiness') || p.includes('recovery')) {
-      return "I'm offline right now, but I'd love to help assess your readiness based on your sleep and recovery data! Check your connection and try again.";
+    if (messageCategory.category === 'workout' && messageCategory.type === 'completed') {
+      return "Nice work! I'm offline right now, but great job getting it done 💪";
     }
     
-    return "I'm offline right now. Check your connection and try again to get personalized fitness and sleep coaching!";
+    if (messageCategory.category === 'general' && messageCategory.type === 'greeting') {
+      return "Hey! I'm offline right now, but I'll be back to help with your fitness and sleep goals soon.";
+    }
+    
+    return "I'm offline right now. Check your connection and try again for personalized coaching!";
   }
   
   isOnline() { 
