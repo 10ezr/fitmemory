@@ -91,19 +91,24 @@ export default function AnalyticsPage() {
         fetch("/api/timer-data")
       ]);
 
-      const [statsData, workoutsData, sleepData, timerData] = await Promise.all([
+      const [statsData, workoutsData, sleepDataResponse, timerDataResponse] = await Promise.all([
         statsRes.json(),
         workoutsRes.json(),
         sleepRes.json(),
         timerRes.json()
       ]);
 
-      setStats(statsData);
-      setWorkoutData(workoutsData.workouts || workoutsData || []);
-      setSleepData(sleepData.sessions || sleepData || []);
-      setTimerData(timerData.sessions || timerData || []);
+      setStats(statsData || {});
+      setWorkoutData(Array.isArray(workoutsData) ? workoutsData : workoutsData?.workouts || []);
+      setSleepData(Array.isArray(sleepDataResponse) ? sleepDataResponse : sleepDataResponse?.sessions || []);
+      setTimerData(Array.isArray(timerDataResponse) ? timerDataResponse : timerDataResponse?.sessions || []);
     } catch (error) {
       console.error("Failed to load analytics data:", error);
+      // Set default empty arrays to prevent errors
+      setStats({});
+      setWorkoutData([]);
+      setSleepData([]);
+      setTimerData([]);
     } finally {
       setLoading(false);
     }
@@ -117,9 +122,9 @@ export default function AnalyticsPage() {
     const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
     
     return dateRange.map(date => {
-      const workoutsOnDate = workoutData.filter(workout => 
+      const workoutsOnDate = Array.isArray(workoutData) ? workoutData.filter(workout => 
         format(new Date(workout.date || workout.createdAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-      );
+      ) : [];
       
       return {
         date: format(date, 'MMM dd'),
@@ -137,9 +142,9 @@ export default function AnalyticsPage() {
     const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
     
     return dateRange.map(date => {
-      const sleepOnDate = sleepData.filter(session => 
+      const sleepOnDate = Array.isArray(sleepData) ? sleepData.filter(session => 
         format(new Date(session.date || session.createdAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-      );
+      ) : [];
       
       const avgQuality = sleepOnDate.length ? 
         sleepOnDate.reduce((sum, s) => sum + (s.quality || 0), 0) / sleepOnDate.length : 0;
@@ -155,10 +160,11 @@ export default function AnalyticsPage() {
   };
 
   const getWorkoutMetrics = () => {
-    const totalWorkouts = workoutData.length;
-    const totalHours = workoutData.reduce((sum, w) => sum + (w.duration || 0), 0) / 3600;
+    const safeWorkoutData = Array.isArray(workoutData) ? workoutData : [];
+    const totalWorkouts = safeWorkoutData.length;
+    const totalHours = safeWorkoutData.reduce((sum, w) => sum + (w.duration || 0), 0) / 3600;
     const avgDuration = totalWorkouts ? (totalHours / totalWorkouts * 60) : 0;
-    const totalExercises = workoutData.reduce((sum, w) => sum + (w.exercises?.length || 0), 0);
+    const totalExercises = safeWorkoutData.reduce((sum, w) => sum + (w.exercises?.length || 0), 0);
     const currentStreak = stats?.currentStreak || 0;
     const longestStreak = stats?.longestStreak || 0;
     
@@ -173,13 +179,14 @@ export default function AnalyticsPage() {
   };
 
   const getSleepMetrics = () => {
-    const totalSessions = sleepData.length;
-    const avgQuality = sleepData.length ? 
-      sleepData.reduce((sum, s) => sum + (s.quality || 0), 0) / sleepData.length : 0;
-    const avgDuration = sleepData.length ? 
-      sleepData.reduce((sum, s) => sum + (s.duration || 0), 0) / sleepData.length : 0;
-    const lastWeekAvg = sleepData.slice(-7).length ? 
-      sleepData.slice(-7).reduce((sum, s) => sum + (s.quality || 0), 0) / sleepData.slice(-7).length : 0;
+    const safeSleepData = Array.isArray(sleepData) ? sleepData : [];
+    const totalSessions = safeSleepData.length;
+    const avgQuality = safeSleepData.length ? 
+      safeSleepData.reduce((sum, s) => sum + (s.quality || 0), 0) / safeSleepData.length : 0;
+    const avgDuration = safeSleepData.length ? 
+      safeSleepData.reduce((sum, s) => sum + (s.duration || 0), 0) / safeSleepData.length : 0;
+    const lastWeekAvg = safeSleepData.slice(-7).length ? 
+      safeSleepData.slice(-7).reduce((sum, s) => sum + (s.quality || 0), 0) / safeSleepData.slice(-7).length : 0;
     
     const qualityTrend = lastWeekAvg && avgQuality ? 
       Math.round(((lastWeekAvg - avgQuality) / avgQuality) * 100) : 0;
@@ -194,12 +201,15 @@ export default function AnalyticsPage() {
 
   const processExerciseTypes = () => {
     const exerciseCount = {};
+    const safeWorkoutData = Array.isArray(workoutData) ? workoutData : [];
     
-    workoutData.forEach(workout => {
-      workout.exercises?.forEach(exercise => {
-        const type = exercise.type || exercise.name?.split(' ')[0] || 'Other';
-        exerciseCount[type] = (exerciseCount[type] || 0) + 1;
-      });
+    safeWorkoutData.forEach(workout => {
+      if (workout.exercises && Array.isArray(workout.exercises)) {
+        workout.exercises.forEach(exercise => {
+          const type = exercise.type || exercise.name?.split(' ')[0] || 'Other';
+          exerciseCount[type] = (exerciseCount[type] || 0) + 1;
+        });
+      }
     });
     
     return Object.entries(exerciseCount)
@@ -238,7 +248,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <motion.div
