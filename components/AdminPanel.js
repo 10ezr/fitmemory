@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/SkeletonLoader'
 
-export default function AdminPanel({ onDataChange }) {
+export default function   AdminPanel({ onDataChange }) {
   const [settings, setSettings] = useState({
     notifications: true,
     sleepReminders: true,
