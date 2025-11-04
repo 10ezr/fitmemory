@@ -17,7 +17,6 @@ import {
   Activity, Clock, TrendingUp, Target, Moon, Sun, 
   Calendar, BarChart3, Zap, Award, Timer
 } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d'];
 
@@ -230,356 +229,347 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto p-6">
-          <div className="space-y-6">
-            <div className="h-8 bg-muted rounded-lg animate-pulse" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-32 bg-muted rounded-lg animate-pulse" />
-              ))}
-            </div>
-            <div className="h-64 bg-muted rounded-lg animate-pulse" />
-          </div>
+      <div className="space-y-6">
+        <div className="h-8 bg-muted rounded-lg animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded-lg animate-pulse" />
+          ))}
         </div>
-        <BottomNav />
+        <div className="h-64 bg-muted rounded-lg animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-2"
-        >
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Analytics Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Comprehensive insights into your fitness and sleep journey
-          </p>
-          
-          {/* Timeframe selector */}
-          <div className="flex items-center gap-2 pt-2">
-            <span className="text-sm text-muted-foreground">Timeframe:</span>
-            <div className="flex rounded-lg border p-1 bg-muted/30">
-              {["7d", "30d", "90d"].map(period => (
-                <Button
-                  key={period}
-                  variant={timeframe === period ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setTimeframe(period)}
-                  className="text-xs"
-                >
-                  {period === "7d" ? "7 Days" : period === "30d" ? "30 Days" : "90 Days"}
-                </Button>
-              ))}
-            </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-2"
+      >
+        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+          Analytics Dashboard
+        </h1>
+        <p className="text-muted-foreground">
+          Comprehensive insights into your fitness and sleep journey
+        </p>
+        
+        {/* Timeframe selector */}
+        <div className="flex items-center gap-2 pt-2">
+          <span className="text-sm text-muted-foreground">Timeframe:</span>
+          <div className="flex rounded-lg border p-1 bg-muted/30">
+            {["7d", "30d", "90d"].map(period => (
+              <Button
+                key={period}
+                variant={timeframe === period ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setTimeframe(period)}
+                className="text-xs"
+              >
+                {period === "7d" ? "7 Days" : period === "30d" ? "30 Days" : "90 Days"}
+              </Button>
+            ))}
           </div>
-        </motion.div>
+        </div>
+      </motion.div>
 
-        {/* Main Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-12">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="workouts" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Workouts
-            </TabsTrigger>
-            <TabsTrigger value="sleep" className="flex items-center gap-2">
-              <Moon className="h-4 w-4" />
-              Sleep
-            </TabsTrigger>
-            <TabsTrigger value="insights" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Insights
-            </TabsTrigger>
-          </TabsList>
+      {/* Main Content */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 h-12">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="workouts" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Workouts
+          </TabsTrigger>
+          <TabsTrigger value="sleep" className="flex items-center gap-2">
+            <Moon className="h-4 w-4" />
+            Sleep
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Insights
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <MetricCard
-                title="Total Workouts"
-                value={workoutMetrics.totalWorkouts}
-                subtitle={`${Math.round(workoutMetrics.totalWorkouts / 30)} per month avg`}
-                icon={Activity}
-                gradient
-              />
-              <MetricCard
-                title="Training Hours"
-                value={`${workoutMetrics.totalHours}h`}
-                subtitle={`${workoutMetrics.avgDuration} min average`}
-                icon={Clock}
-              />
-              <MetricCard
-                title="Current Streak"
-                value={`${workoutMetrics.currentStreak}`}
-                subtitle={`Best: ${workoutMetrics.longestStreak} days`}
-                icon={Award}
-                color="text-orange-500"
-              />
-              <MetricCard
-                title="Sleep Quality"
-                value={`${sleepMetrics.avgQuality}/10`}
-                subtitle={`${sleepMetrics.avgDuration}h average`}
-                icon={Moon}
-                trend={sleepMetrics.qualityTrend}
-                color="text-blue-500"
-              />
-            </div>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              title="Total Workouts"
+              value={workoutMetrics.totalWorkouts}
+              subtitle={`${Math.round(workoutMetrics.totalWorkouts / 30)} per month avg`}
+              icon={Activity}
+              gradient
+            />
+            <MetricCard
+              title="Training Hours"
+              value={`${workoutMetrics.totalHours}h`}
+              subtitle={`${workoutMetrics.avgDuration} min average`}
+              icon={Clock}
+            />
+            <MetricCard
+              title="Current Streak"
+              value={`${workoutMetrics.currentStreak}`}
+              subtitle={`Best: ${workoutMetrics.longestStreak} days`}
+              icon={Award}
+              color="text-orange-500"
+            />
+            <MetricCard
+              title="Sleep Quality"
+              value={`${sleepMetrics.avgQuality}/10`}
+              subtitle={`${sleepMetrics.avgDuration}h average`}
+              icon={Moon}
+              trend={sleepMetrics.qualityTrend}
+              color="text-blue-500"
+            />
+          </div>
 
-            {/* Combined Overview Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ChartContainer 
-                title="Activity Overview" 
-                description="Workout frequency and duration trends"
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={workoutFrequencyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }} 
-                    />
-                    <Bar dataKey="workouts" fill="#8884d8" radius={[2, 2, 0, 0]} />
-                    <Line type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-
-              <ChartContainer 
-                title="Sleep Trends" 
-                description="Sleep quality and duration patterns"
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={sleepTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }} 
-                    />
-                    <Area type="monotone" dataKey="quality" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
-                    <Line type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          </TabsContent>
-
-          {/* Workouts Tab */}
-          <TabsContent value="workouts" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard
-                title="Total Exercises"
-                value={workoutMetrics.totalExercises}
-                subtitle={`${Math.round(workoutMetrics.totalExercises / (workoutMetrics.totalWorkouts || 1))} per workout`}
-                icon={Target}
-              />
-              <MetricCard
-                title="Avg Duration"
-                value={`${workoutMetrics.avgDuration}min`}
-                subtitle="Per workout session"
-                icon={Timer}
-              />
-              <MetricCard
-                title="Consistency"
-                value={`${Math.round((workoutMetrics.currentStreak / 30) * 100)}%`}
-                subtitle="This month"
-                icon={TrendingUp}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ChartContainer title="Workout Frequency" description="Daily workout distribution">
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={workoutFrequencyData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis fontSize={12} />
-                    <Tooltip />
-                    <Area 
-                      type="monotone" 
-                      dataKey="workouts" 
-                      stroke="#8884d8" 
-                      fill="#8884d8" 
-                      fillOpacity={0.6}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-
-              <ChartContainer title="Exercise Types" description="Most common exercises">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={exerciseTypeData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {exerciseTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          </TabsContent>
-
-          {/* Sleep Tab */}
-          <TabsContent value="sleep" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard
-                title="Total Sessions"
-                value={sleepMetrics.totalSessions}
-                subtitle="Recorded sleep sessions"
-                icon={Moon}
-              />
-              <MetricCard
-                title="Avg Quality"
-                value={`${sleepMetrics.avgQuality}/10`}
-                subtitle="Sleep quality rating"
-                icon={Award}
-                trend={sleepMetrics.qualityTrend}
-              />
-              <MetricCard
-                title="Avg Duration"
-                value={`${sleepMetrics.avgDuration}h`}
-                subtitle="Per night"
-                icon={Clock}
-              />
-            </div>
-
-            <ChartContainer title="Sleep Quality Trends" description="Sleep quality and duration over time">
-              <ResponsiveContainer width="100%" height={400}>
-                <ComposedChart data={sleepTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
+          {/* Combined Overview Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartContainer 
+              title="Activity Overview" 
+              description="Workout frequency and duration trends"
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={workoutFrequencyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" fontSize={12} />
-                  <YAxis yAxisId="left" fontSize={12} />
-                  <YAxis yAxisId="right" orientation="right" fontSize={12} />
-                  <Tooltip />
-                  <Bar yAxisId="left" dataKey="quality" fill="#8884d8" radius={[2, 2, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
+                  <YAxis fontSize={12} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }} 
+                  />
+                  <Bar dataKey="workouts" fill="#8884d8" radius={[2, 2, 0, 0]} />
+                  <Line type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartContainer>
-          </TabsContent>
 
-          {/* Insights Tab */}
-          <TabsContent value="insights" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Performance Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                    <h4 className="font-semibold text-primary mb-2">🔥 Streak Status</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {workoutMetrics.currentStreak >= 7 ? 
-                        "Great consistency! You're building strong habits." :
-                        "Focus on consistency to build momentum."
-                      }
-                    </p>
+            <ChartContainer 
+              title="Sleep Trends" 
+              description="Sleep quality and duration patterns"
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={sleepTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }} 
+                  />
+                  <Area type="monotone" dataKey="quality" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                  <Line type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+        </TabsContent>
+
+        {/* Workouts Tab */}
+        <TabsContent value="workouts" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MetricCard
+              title="Total Exercises"
+              value={workoutMetrics.totalExercises}
+              subtitle={`${Math.round(workoutMetrics.totalExercises / (workoutMetrics.totalWorkouts || 1))} per workout`}
+              icon={Target}
+            />
+            <MetricCard
+              title="Avg Duration"
+              value={`${workoutMetrics.avgDuration}min`}
+              subtitle="Per workout session"
+              icon={Timer}
+            />
+            <MetricCard
+              title="Consistency"
+              value={`${Math.round((workoutMetrics.currentStreak / 30) * 100)}%`}
+              subtitle="This month"
+              icon={TrendingUp}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartContainer title="Workout Frequency" description="Daily workout distribution">
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={workoutFrequencyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Area 
+                    type="monotone" 
+                    dataKey="workouts" 
+                    stroke="#8884d8" 
+                    fill="#8884d8" 
+                    fillOpacity={0.6}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+
+            <ChartContainer title="Exercise Types" description="Most common exercises">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={exerciseTypeData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {exerciseTypeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+        </TabsContent>
+
+        {/* Sleep Tab */}
+        <TabsContent value="sleep" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MetricCard
+              title="Total Sessions"
+              value={sleepMetrics.totalSessions}
+              subtitle="Recorded sleep sessions"
+              icon={Moon}
+            />
+            <MetricCard
+              title="Avg Quality"
+              value={`${sleepMetrics.avgQuality}/10`}
+              subtitle="Sleep quality rating"
+              icon={Award}
+              trend={sleepMetrics.qualityTrend}
+            />
+            <MetricCard
+              title="Avg Duration"
+              value={`${sleepMetrics.avgDuration}h`}
+              subtitle="Per night"
+              icon={Clock}
+            />
+          </div>
+
+          <ChartContainer title="Sleep Quality Trends" description="Sleep quality and duration over time">
+            <ResponsiveContainer width="100%" height={400}>
+              <ComposedChart data={sleepTrendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" fontSize={12} />
+                <YAxis yAxisId="left" fontSize={12} />
+                <YAxis yAxisId="right" orientation="right" fontSize={12} />
+                <Tooltip />
+                <Bar yAxisId="left" dataKey="quality" fill="#8884d8" radius={[2, 2, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="duration" stroke="#82ca9d" strokeWidth={2} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </TabsContent>
+
+        {/* Insights Tab */}
+        <TabsContent value="insights" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Performance Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                  <h4 className="font-semibold text-primary mb-2">🔥 Streak Status</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {workoutMetrics.currentStreak >= 7 ? 
+                      "Great consistency! You're building strong habits." :
+                      "Focus on consistency to build momentum."
+                    }
+                  </p>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                  <h4 className="font-semibold text-blue-700 mb-2">😴 Sleep Quality</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {sleepMetrics.avgQuality >= 7 ? 
+                      "Excellent sleep quality! This supports your fitness goals." :
+                      "Consider improving sleep hygiene for better recovery."
+                    }
+                  </p>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                  <h4 className="font-semibold text-green-700 mb-2">💪 Workout Volume</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {workoutMetrics.avgDuration >= 45 ? 
+                      "Good workout duration. You're putting in solid effort!" :
+                      "Consider slightly longer sessions for better results."
+                    }
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Recommendations
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-sm">Maintain Consistency</h5>
+                      <p className="text-xs text-muted-foreground">Aim for at least 3-4 workouts per week</p>
+                    </div>
                   </div>
                   
-                  <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                    <h4 className="font-semibold text-blue-700 mb-2">😴 Sleep Quality</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {sleepMetrics.avgQuality >= 7 ? 
-                        "Excellent sleep quality! This supports your fitness goals." :
-                        "Consider improving sleep hygiene for better recovery."
-                      }
-                    </p>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-sm">Optimize Sleep</h5>
+                      <p className="text-xs text-muted-foreground">7-9 hours of quality sleep supports recovery</p>
+                    </div>
                   </div>
                   
-                  <div className="p-4 rounded-lg bg-green-50 border border-green-200">
-                    <h4 className="font-semibold text-green-700 mb-2">💪 Workout Volume</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {workoutMetrics.avgDuration >= 45 ? 
-                        "Good workout duration. You're putting in solid effort!" :
-                        "Consider slightly longer sessions for better results."
-                      }
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5" />
-                    Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
-                      <div className="w-2 h-2 rounded-full bg-orange-500 mt-2 flex-shrink-0" />
-                      <div>
-                        <h5 className="font-medium text-sm">Maintain Consistency</h5>
-                        <p className="text-xs text-muted-foreground">Aim for at least 3-4 workouts per week</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                      <div>
-                        <h5 className="font-medium text-sm">Optimize Sleep</h5>
-                        <p className="text-xs text-muted-foreground">7-9 hours of quality sleep supports recovery</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-200">
-                      <div className="w-2 h-2 rounded-full bg-green-500 mt-2 flex-shrink-0" />
-                      <div>
-                        <h5 className="font-medium text-sm">Progressive Overload</h5>
-                        <p className="text-xs text-muted-foreground">Gradually increase intensity or duration</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-200">
-                      <div className="w-2 h-2 rounded-full bg-purple-500 mt-2 flex-shrink-0" />
-                      <div>
-                        <h5 className="font-medium text-sm">Track Recovery</h5>
-                        <p className="text-xs text-muted-foreground">Monitor sleep quality for optimal performance</p>
-                      </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-200">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-sm">Progressive Overload</h5>
+                      <p className="text-xs text-muted-foreground">Gradually increase intensity or duration</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-      
-      <BottomNav />
+                  
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                    <div className="w-2 h-2 rounded-full bg-purple-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-sm">Track Recovery</h5>
+                      <p className="text-xs text-muted-foreground">Monitor sleep quality for optimal performance</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
