@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
               <FitnessSidebar />
               <SidebarInset className="flex-1">
                 <div className="h-full overflow-y-auto scrollbar-hide">
-                  <main className="w-full max-w-7xl mx-auto px-6 py-8">
+                  <main className="w-full max-w-7xl mx-auto px-4 py-6">
                     {children}
                   </main>
                 </div>
