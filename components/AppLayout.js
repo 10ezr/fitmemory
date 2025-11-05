@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import LeftSidebar from "@/components/LeftSidebar";
+import FitnessSidebar from "@/components/FitnessSidebar";
 import { useState, useEffect } from "react";
 
 /**
@@ -54,10 +54,9 @@ export default function AppLayout({ children }) {
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
-        <LeftSidebar 
+        <FitnessSidebar 
           stats={stats} 
           onDataChange={refreshStats}
-          showFullStats={false} // Don't show all stats on non-home pages
         />
         <SidebarInset className="flex-1">
           <div className="h-full overflow-y-auto scrollbar-hide">
