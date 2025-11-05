@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { usePathname } from "next/navigation";
 import {
   Flame,
   Clock,
@@ -15,7 +14,6 @@ import {
   Database,
   ShieldCheck,
   Moon,
-  Dumbbell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,7 +21,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarTrigger,
   useSidebar,
@@ -51,22 +48,6 @@ const RENDER_KEYS = [
   "totalWorkouts",
   "weeklyCounts",
   "lastSuccessAt",
-];
-
-// Navigation items
-const navItems = [
-  { icon: Home, label: "Chat", href: "/" },
-  { icon: Activity, label: "Workouts", href: "/workouts" },
-  { icon: Moon, label: "Sleep", href: "/sleep" },
-  { icon: BarChart3, label: "Analytics", href: "/analytics" },
-  { icon: User, label: "Profile", href: "/profile" },
-];
-
-// Admin & settings items for the footer
-const footerNavItems = [
-  { icon: Settings, label: "Settings", href: "/settings" },
-  { icon: Database, label: "Data", href: "/data" },
-  { icon: ShieldCheck, label: "Admin", href: "/admin" },
 ];
 
 function shallowEqualKeys(a = {}, b = {}, keys = []) {
@@ -101,7 +82,6 @@ export default function FitnessSidebar({ stats, onDataChange }) {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [auth, setAuth] = useState({ authenticated: false, user: null });
-  const pathname = usePathname();
 
   // Live time with seconds (12-hour format with IST)
   const [now, setNow] = useState(() => Date.now());
@@ -192,79 +172,74 @@ export default function FitnessSidebar({ stats, onDataChange }) {
     >
       <SidebarHeader className="border-b border-neutral-900/10 dark:border-neutral-900">
         <div className="flex items-center justify-between px-2 py-1">
-          {!isCollapsed && <div className="text-sm font-medium">FitMemory</div>}
+          {!isCollapsed && <div className="text-sm font-medium">Overview</div>}
           <div className="flex items-center gap-1">
             <SidebarTrigger className="h-8 w-8" />
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto scrollbar-hide">
-        {/* Navigation Links */}
+      <SidebarContent className="p-2 space-y-4 overflow-y-auto scrollbar-hide">
         <SidebarGroup>
-          <SidebarGroupContent className="px-2 py-2">
-            <div className="space-y-1">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Button
-                    key={item.href}
-                    variant={isActive ? "default" : "ghost"}
-                    className={`w-full justify-start gap-3 px-3 py-2 h-auto ${
-                      isCollapsed ? "px-2" : ""
-                    }`}
-                    onClick={() => location.assign(item.href)}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {!isCollapsed && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                  </Button>
-                );
-              })}
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Overview Stats - Only show on home or when stats are available */}
-        {(pathname === "/" || stats) && (
-          <SidebarGroup>
-            {!isCollapsed && (
-              <SidebarGroupLabel className="px-4 text-xs uppercase tracking-wider font-medium text-muted-foreground">
-                Overview
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent className="p-2 space-y-4">
-              {!isCollapsed ? (
-                <div className="space-y-4">
-                  {/* Current time with live seconds (12-hour) */}
-                  <Card className="border">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-primary" /> Current Time
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold font-mono tracking-wider">
-                          {timeFmt.format(now)}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 font-medium">
-                          {dateFmt.format(now)} (IST)
-                        </div>
+          <SidebarGroupContent>
+            {!isCollapsed ? (
+              <div className="space-y-4">
+                {/* Current time with live seconds (12-hour) */}
+                <Card className="border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" /> Current Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold font-mono tracking-wider">
+                        {timeFmt.format(now)}
                       </div>
+                      <div className="text-xs text-muted-foreground mt-1 font-medium">
+                        {dateFmt.format(now)} (IST)
+                      </div>
+                    </div>
+                    <div className="border-t pt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calendar className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Until Tomorrow
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { value: untilTomorrow.hours },
+                          { value: untilTomorrow.minutes },
+                          { value: untilTomorrow.seconds },
+                        ].map((b, i) => (
+                          <div
+                            key={i}
+                            className="bg-card/50 border rounded-lg p-3 text-center"
+                          >
+                            <div className="text-xl font-bold text-primary font-mono">
+                              {String(b.value).padStart(2, "0")}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                              {i === 0 ? "HRS" : i === 1 ? "MIN" : "SEC"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {lastSuccessAt > 0 && (
                       <div className="border-t pt-4">
                         <div className="flex items-center gap-2 mb-3">
                           <Calendar className="h-4 w-4 text-primary" />
                           <span className="text-sm font-medium text-muted-foreground">
-                            Until Tomorrow
+                            Next reset window
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { value: untilTomorrow.hours },
-                            { value: untilTomorrow.minutes },
-                            { value: untilTomorrow.seconds },
+                            { value: until24h.hours },
+                            { value: until24h.minutes },
+                            { value: until24h.seconds },
                           ].map((b, i) => (
                             <div
                               key={i}
@@ -280,125 +255,74 @@ export default function FitnessSidebar({ stats, onDataChange }) {
                           ))}
                         </div>
                       </div>
-                      {lastSuccessAt > 0 && (
-                        <div className="border-t pt-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Calendar className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Next reset window
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            {[
-                              { value: until24h.hours },
-                              { value: until24h.minutes },
-                              { value: until24h.seconds },
-                            ].map((b, i) => (
-                              <div
-                                key={i}
-                                className="bg-card/50 border rounded-lg p-3 text-center"
-                              >
-                                <div className="text-xl font-bold text-primary font-mono">
-                                  {String(b.value).padStart(2, "0")}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                  {i === 0 ? "HRS" : i === 1 ? "MIN" : "SEC"}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-                  {/* Streak card */}
-                  <Card className="border bg-card rounded-md">
-                    <CardContent className="p-6 text-center">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Flame className="h-5 w-5 text-primary" />
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Current Streak
-                        </span>
+                {/* Streak card */}
+                <Card className="border bg-card rounded-md">
+                  <CardContent className="p-6 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <Flame className="h-5 w-5 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Current Streak
+                      </span>
+                    </div>
+                    <div className="text-5xl font-extrabold leading-none">
+                      {currentStreak}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      days in a row
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sleep Dashboard */}
+                <SleepDashboard isCollapsed={false} />
+
+                {/* Workout stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border bg-card/30 backdrop-blur-sm">
+                    <CardContent className="p-4 text-center">
+                      <div className="text-xl font-bold text-primary">
+                        {weeklyCount}
                       </div>
-                      <div className="text-5xl font-extrabold leading-none">
-                        {currentStreak}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        days in a row
+                      <div className="text-xs text-muted-foreground">
+                        This Week
                       </div>
                     </CardContent>
                   </Card>
-
-                  {/* Sleep Dashboard */}
-                  <SleepDashboard isCollapsed={false} />
-
-                  {/* Workout stats */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card className="border bg-card/30 backdrop-blur-sm">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-xl font-bold text-primary">
-                          {weeklyCount}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          This Week
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="border bg-card/30 backdrop-blur-sm">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-xl font-bold text-primary">
-                          {totalWorkouts}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Total</div>
-                      </CardContent>
-                    </Card>
+                  <Card className="border bg-card/30 backdrop-blur-sm">
+                    <CardContent className="p-4 text-center">
+                      <div className="text-xl font-bold text-primary">
+                        {totalWorkouts}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center space-y-4 pt-6">
+                <div className="w-16 h-14 rounded-lg bg-primary/20 flex flex-col items-center justify-center text-primary font-bold font-mono leading-tight">
+                  <div className="text-sm">
+                    {timeFmt
+                      .format(now)
+                      .replace(/:\d{2} /, " ")
+                      .replace(/ /g, "")}
+                  </div>
+                  <div className="text-[10px] opacity-70">
+                    {timeFmt.format(now).slice(-2)}
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center space-y-4 pt-6">
-                  <div className="w-16 h-14 rounded-lg bg-primary/20 flex flex-col items-center justify-center text-primary font-bold font-mono leading-tight">
-                    <div className="text-sm">
-                      {timeFmt
-                        .format(now)
-                        .replace(/:\d{2} /, " ")
-                        .replace(/ /g, "")}
-                    </div>
-                    <div className="text-[10px] opacity-70">
-                      {timeFmt.format(now).slice(-2)}
-                    </div>
-                  </div>
-                  <SleepDashboard isCollapsed={true} />
-                </div>
-              )}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+                <SleepDashboard isCollapsed={true} />
+              </div>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t px-3 py-2">
-        {/* Footer Navigation */}
-        {!isCollapsed && (
-          <div className="space-y-1 mb-3">
-            {footerNavItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Button
-                  key={item.href}
-                  variant={isActive ? "default" : "ghost"}
-                  size="sm"
-                  className="w-full justify-start gap-2 h-8"
-                  onClick={() => location.assign(item.href)}
-                >
-                  <item.icon className="h-3 w-3" />
-                  <span className="text-xs">{item.label}</span>
-                </Button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* User Auth Section */}
+      <SidebarFooter className="flex justify-between items-center border-t px-3 py-2">
         {auth.authenticated ? (
           <Popover>
             <PopoverTrigger asChild>
@@ -419,7 +343,7 @@ export default function FitnessSidebar({ stats, onDataChange }) {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-56">
+            <PopoverContent align="end" className="w-64">
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
@@ -434,6 +358,65 @@ export default function FitnessSidebar({ stats, onDataChange }) {
                       Role: {auth.user?.role || "user"}
                     </div>
                   </div>
+                </div>
+
+                {/* Main Navigation Links */}
+                <div className="space-y-1">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/")}
+                  >
+                    <Home className="h-4 w-4" /> Chat
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/workouts")}
+                  >
+                    <Activity className="h-4 w-4" /> Workouts
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/analytics")}
+                  >
+                    <BarChart3 className="h-4 w-4" /> Analytics
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/profile")}
+                  >
+                    <User className="h-4 w-4" /> Profile
+                  </Button>
+                </div>
+
+                <Separator />
+
+                {/* Secondary Navigation Links */}
+                <div className="space-y-1">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/settings")}
+                  >
+                    <Settings className="h-4 w-4" /> Settings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/data")}
+                  >
+                    <Database className="h-4 w-4" /> Data
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/admin")}
+                  >
+                    <ShieldCheck className="h-4 w-4" /> Admin
+                  </Button>
                 </div>
 
                 <Separator />
