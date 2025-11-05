@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Zap, Brain, Heart, Settings, Save, Database, Target } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
+
 
 export default function AISettingsPage() {
   const [settings, setSettings] = useState({
@@ -111,7 +111,6 @@ export default function AISettingsPage() {
             <div className="h-64 bg-muted rounded-lg animate-pulse" />
           </div>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -327,7 +326,6 @@ export default function AISettingsPage() {
         </motion.div>
       </div>
       
-      <BottomNav />
     </div>
   );
 }

@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,21 +16,20 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { Moon, Clock, Target, Settings } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
 
 export default function SleepSettingsPage() {
   const [settings, setSettings] = useState({
     sleepReminders: true,
-    reminderTime: '22:00',
+    reminderTime: "22:00",
     targetSleepHours: [8],
     sleepQualityGoal: [7],
     weekendFlexibility: true,
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const toArr = (v, def) => Array.isArray(v) ? v : [v ?? def];
+  const toArr = (v, def) => (Array.isArray(v) ? v : [v ?? def]);
 
   useEffect(() => {
     loadSettings();
@@ -33,21 +38,22 @@ export default function SleepSettingsPage() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/settings');
+      const response = await fetch("/api/admin/settings");
       if (response.ok) {
         const data = await response.json();
-        setSettings(prev => ({
+        setSettings((prev) => ({
           ...prev,
           sleepReminders: data.sleepReminders ?? prev.sleepReminders,
           reminderTime: data.reminderTime ?? prev.reminderTime,
           targetSleepHours: toArr(data.targetSleepHours, 8),
           sleepQualityGoal: toArr(data.sleepQualityGoal, 7),
-          weekendFlexibility: data.weekendFlexibility ?? prev.weekendFlexibility,
+          weekendFlexibility:
+            data.weekendFlexibility ?? prev.weekendFlexibility,
         }));
       }
     } catch (error) {
-      console.error('Failed to load sleep settings:', error);
-      toast.error('Failed to load settings');
+      console.error("Failed to load sleep settings:", error);
+      toast.error("Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -56,9 +62,9 @@ export default function SleepSettingsPage() {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/admin/sleep-goals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/admin/sleep-goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           targetSleepHours: Number(settings.targetSleepHours[0]),
           sleepQualityGoal: Number(settings.sleepQualityGoal[0]),
@@ -69,12 +75,12 @@ export default function SleepSettingsPage() {
       });
 
       if (response.ok) {
-        toast.success('Sleep settings saved successfully');
+        toast.success("Sleep settings saved successfully");
       } else {
-        toast.error('Failed to save settings');
+        toast.error("Failed to save settings");
       }
     } catch (error) {
-      toast.error('Error saving settings');
+      toast.error("Error saving settings");
     } finally {
       setSaving(false);
     }
@@ -89,7 +95,6 @@ export default function SleepSettingsPage() {
             <div className="h-64 bg-muted rounded-lg animate-pulse" />
           </div>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -129,32 +134,50 @@ export default function SleepSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-3">
-                <Label>Target Sleep Duration: {settings.targetSleepHours[0]} hours</Label>
+                <Label>
+                  Target Sleep Duration: {settings.targetSleepHours[0]} hours
+                </Label>
                 <Slider
                   value={settings.targetSleepHours}
-                  onValueChange={(value) => setSettings(prev => ({ ...prev, targetSleepHours: value }))}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      targetSleepHours: value,
+                    }))
+                  }
                   max={12}
                   min={6}
                   step={0.5}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>6h</span><span>9h (recommended)</span><span>12h</span>
+                  <span>6h</span>
+                  <span>9h (recommended)</span>
+                  <span>12h</span>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
-                <Label>Sleep Quality Goal: {settings.sleepQualityGoal[0]}/10</Label>
+                <Label>
+                  Sleep Quality Goal: {settings.sleepQualityGoal[0]}/10
+                </Label>
                 <Slider
                   value={settings.sleepQualityGoal}
-                  onValueChange={(value) => setSettings(prev => ({ ...prev, sleepQualityGoal: value }))}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      sleepQualityGoal: value,
+                    }))
+                  }
                   max={10}
                   min={1}
                   step={1}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Poor</span><span>Good</span><span>Excellent</span>
+                  <span>Poor</span>
+                  <span>Good</span>
+                  <span>Excellent</span>
                 </div>
               </div>
             </CardContent>
@@ -174,21 +197,28 @@ export default function SleepSettingsPage() {
                 Sleep Reminders
               </CardTitle>
               <CardDescription>
-                Get notified when it's time to wind down for bed
+                Get notified when it&apos;s time to wind down for bed
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label>Enable Sleep Reminders</Label>
-                  <p className="text-sm text-muted-foreground">Get bedtime notifications</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get bedtime notifications
+                  </p>
                 </div>
                 <Switch
                   checked={settings.sleepReminders}
-                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, sleepReminders: checked }))}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      sleepReminders: checked,
+                    }))
+                  }
                 />
               </div>
-              
+
               {settings.sleepReminders && (
                 <div className="space-y-2">
                   <Label htmlFor="reminder-time">Bedtime Reminder</Label>
@@ -196,20 +226,32 @@ export default function SleepSettingsPage() {
                     id="reminder-time"
                     type="time"
                     value={settings.reminderTime}
-                    onChange={(e) => setSettings(prev => ({ ...prev, reminderTime: e.target.value }))}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        reminderTime: e.target.value,
+                      }))
+                    }
                     className="w-full"
                   />
                 </div>
               )}
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label>Weekend Flexibility</Label>
-                  <p className="text-sm text-muted-foreground">Allow later bedtime on weekends</p>
+                  <p className="text-sm text-muted-foreground">
+                    Allow later bedtime on weekends
+                  </p>
                 </div>
                 <Switch
                   checked={settings.weekendFlexibility}
-                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, weekendFlexibility: checked }))}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      weekendFlexibility: checked,
+                    }))
+                  }
                 />
               </div>
             </CardContent>
@@ -222,22 +264,24 @@ export default function SleepSettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Button 
+          <Button
             onClick={saveSettings}
             disabled={saving}
             className="w-full flex items-center gap-2"
             size="lg"
           >
             {saving ? (
-              <>Saving... <Settings className="h-4 w-4 animate-spin" /></>
+              <>
+                Saving... <Settings className="h-4 w-4 animate-spin" />
+              </>
             ) : (
-              <>Save Sleep Settings <Target className="h-4 w-4" /></>
+              <>
+                Save Sleep Settings <Target className="h-4 w-4" />
+              </>
             )}
           </Button>
         </motion.div>
       </div>
-      
-      <BottomNav />
     </div>
   );
 }
