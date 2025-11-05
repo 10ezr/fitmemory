@@ -7,10 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Home, BarChart3, Activity, Settings, User
+  Home, BarChart3, Activity, Settings, User, 
+  Moon, Database, ShieldCheck, Wrench
 } from "lucide-react";
 
-export default function SidebarFooterNav() {
+export default function SidebarFooterNav({ isCollapsed = false }) {
   const pathname = usePathname();
 
   const Item = ({ href, label, icon: Icon, className = "" }) => {
@@ -19,23 +20,48 @@ export default function SidebarFooterNav() {
       <Link href={href} className="w-full">
         <Button 
           variant={active ? "secondary" : "ghost"} 
-          className={`w-full justify-start gap-2 ${className}`}
+          className={`w-full ${isCollapsed ? 'justify-center px-2' : 'justify-start'} gap-2 ${className}`}
+          size={isCollapsed ? "sm" : "default"}
         >
-          <Icon className="h-4 w-4" />
-          <span className="text-sm">{label}</span>
+          <Icon className="h-4 w-4 shrink-0" />
+          {!isCollapsed && <span className="text-sm truncate">{label}</span>}
         </Button>
       </Link>
     );
   };
 
+  if (isCollapsed) {
+    return (
+      <div className="space-y-1">
+        {/* Main navigation items in collapsed mode */}
+        <Item href="/" label="Chat" icon={Home} />
+        <Item href="/workouts" label="Workouts" icon={Activity} />
+        <Item href="/analytics" label="Analytics" icon={BarChart3} />
+        <Item href="/profile" label="Profile" icon={User} />
+        <Item href="/settings" label="Settings" icon={Settings} />
+        <Item href="/admin" label="Admin" icon={ShieldCheck} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       {/* Main navigation items */}
-      <Item href="/" label="Chat" icon={Home} />
-      <Item href="/analytics" label="Analytics" icon={BarChart3} />
-      <Item href="/workouts" label="Workouts" icon={Activity} />
-      <Item href="/profile" label="Profile" icon={User} />
-      <Item href="/admin" label="Admin" icon={Settings} />
+      <div className="space-y-1">
+        <Item href="/" label="Chat" icon={Home} />
+        <Item href="/workouts" label="Workouts" icon={Activity} />
+        <Item href="/analytics" label="Analytics" icon={BarChart3} />
+        <Item href="/profile" label="Profile" icon={User} />
+      </div>
+      
+      <Separator className="my-2" />
+      
+      {/* Secondary navigation items */}
+      <div className="space-y-1">
+        <Item href="/settings" label="Settings" icon={Settings} />
+        <Item href="/data" label="Data" icon={Database} />
+        <Item href="/admin" label="Admin" icon={ShieldCheck} />
+      </div>
       
       <Separator className="my-3" />
       
