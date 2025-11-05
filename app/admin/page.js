@@ -8,14 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { 
   Settings, RefreshCw, Plus, Edit3, Trash2, 
   Clock, Brain, Activity, MessageSquare, 
-  Calendar, TrendingUp, Database, User
+  TrendingUp, Moon, Bell, Zap, Database, Shield
 } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
+import Link from "next/link";
 
 const StatCard = ({ title, value, subtitle, icon: Icon, color = "text-primary" }) => (
   <motion.div
@@ -108,6 +107,27 @@ const MemoryCard = ({ memory, isEditing, onEdit, onSave, onCancel, onDelete, onC
       </CardContent>
     </Card>
   </motion.div>
+);
+
+const SettingsSection = ({ title, description, href, icon: Icon }) => (
+  <Link href={href}>
+    <Card className="group hover:shadow-md transition-all duration-200 cursor-pointer">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Icon className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold">{title}</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="sm">Configure</Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </Link>
 );
 
 export default function AdminPage() {
@@ -215,10 +235,42 @@ export default function AdminPage() {
             <div className="h-64 bg-muted rounded-lg animate-pulse" />
           </div>
         </div>
-        <BottomNav />
       </div>
     );
   }
+
+  const settingsPages = [
+    {
+      title: "Sleep Settings",
+      description: "Configure sleep goals, tracking preferences, and notifications",
+      href: "/settings/sleep",
+      icon: Moon
+    },
+    {
+      title: "Notification Settings", 
+      description: "Manage alerts, reminders, and notification preferences",
+      href: "/settings/notifications",
+      icon: Bell
+    },
+    {
+      title: "AI & Memory Settings",
+      description: "Configure AI behavior, memory management, and personalization", 
+      href: "/settings/ai",
+      icon: Zap
+    },
+    {
+      title: "Data Management",
+      description: "Export, import, backup and manage your fitness data",
+      href: "/settings/data", 
+      icon: Database
+    },
+    {
+      title: "Security Settings",
+      description: "Password, authentication, and privacy configuration",
+      href: "/settings/security",
+      icon: Shield
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -272,10 +324,14 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 h-12">
+          <TabsList className="grid w-full grid-cols-6 h-12">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Overview
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Settings
             </TabsTrigger>
             <TabsTrigger value="memories" className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
@@ -329,6 +385,28 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Application Settings</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure different aspects of FitMemory. Each setting has been moved to its dedicated page for better organization.
+              </p>
+            </div>
+            
+            <div className="grid gap-4">
+              {settingsPages.map((setting) => (
+                <SettingsSection
+                  key={setting.href}
+                  title={setting.title}
+                  description={setting.description}
+                  href={setting.href}
+                  icon={setting.icon}
+                />
+              ))}
+            </div>
           </TabsContent>
 
           {/* Memories Tab */}
@@ -546,8 +624,6 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </div>
-      
-      <BottomNav />
     </div>
   );
 }
