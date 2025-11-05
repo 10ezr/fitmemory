@@ -1,440 +1,290 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useEffect, useRef } from "react";
-import { PaperAirplaneIcon } from "@heroicons/react/24/solid";
-import ChatMessage from "@/components/ChatMessage";
-import FitnessSidebar from "@/components/FitnessSidebar";
-import TomorrowSidebar from "@/components/TomorrowSidebar";
-import QuickShortcuts from "@/components/QuickShortcuts";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { SkeletonChatList } from "@/components/SkeletonLoader";
+import { Separator } from "@/components/ui/separator";
+import { Flame, Activity, BarChart3, Moon, Timer, TrendingUp, Dumbbell, Sparkles, Target, Droplet, Footprints, HeartPulse, ChevronRight } from "lucide-react";
 import realTimeSync from "@/app/services/realTimeSync";
-import { showActionToast } from "@/lib/toasts";
 
-// Lazy-load heavy dashboard only when needed
-const AnalyticsDashboard = dynamic(
-  () => import("@/components/AnalyticsDashboard"),
-  { ssr: false }
-);
+const COLORS = ["#7c3aed", "#0ea5e9", "#22c55e", "#f59e0b", "#ef4444"]; // accent palette
 
-export default function Home() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+// Tiny sparkline using inline SVG
+function Sparkline({ data = [], color = "#7c3aed" }) {
+  const points = useMemo(() => {
+    if (!data.length) return "";
+    const w = 120, h = 36;
+    const max = Math.max(1, ...data);
+    const step = w / Math.max(1, data.length - 1);
+    return data
+      .map((v, i) => {
+        const x = i * step;
+        const y = h - (v / max) * (h - 4) - 2;
+        return `${x},${y}`;
+      })
+      .join(" ");
+  }, [data]);
+  return (
+    <svg width="120" height="36" viewBox="0 0 120 36" className="opacity-90">
+      <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
+    </svg>
+  );
+}
+
+export default function DashboardHome() {
+  const router = useRouter();
   const [stats, setStats] = useState(null);
-  const [showAnalytics, setShowAnalytics] = useState(false);
-  const [todaysWorkout, setTodaysWorkout] = useState(null);
+  const [workouts, setWorkouts] = useState([]);
+  const [sleep, setSleep] = useState([]);
   const [timerData, setTimerData] = useState([]);
-  const [notificationService, setNotificationService] = useState(null);
-  const messagesEndRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
-  const scrollToBottom = () =>
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  // DEBUG: Track component lifecycle
   useEffect(() => {
-    console.log(
-      "FitMemory page mounted/remounted at:",
-      new Date().toISOString()
-    );
-    return () =>
-      console.log("FitMemory page unmounted at:", new Date().toISOString());
+    let mounted = true;
+    const load = async () => {
+      try {
+        const [s, w, sl, t] = await Promise.all([
+          fetch("/api/stats", { cache: "no-store" }),
+          fetch("/api/workouts?limit=6", { cache: "no-store" }),
+          fetch("/api/sleep?limit=14", { cache: "no-store" }).catch(() => ({ ok: false })),
+          fetch("/api/timer-data", { cache: "no-store" }),
+        ]);
+        const [sJ, wJ, slJ, tJ] = await Promise.all([
+          s.ok ? s.json() : {},
+          w.ok ? w.json() : [],
+          sl && sl.ok ? sl.json() : { sessions: [] },
+          t.ok ? t.json() : { sessions: [] },
+        ]);
+        if (!mounted) return;
+        setStats(sJ || {});
+        setWorkouts(wJ?.workouts || wJ || []);
+        setSleep(slJ?.sessions || []);
+        setTimerData(tJ?.sessions || []);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+
+    const unsub1 = realTimeSync.subscribe("stats", (u) => setStats((p) => ({ ...(p || {}), ...(u || {}) })), "DashboardHome");
+    return () => {
+      mounted = false;
+      try { unsub1?.(); } catch {}
+    };
   }, []);
 
-  // FIX: Single initialization with proper cleanup
-  useEffect(() => {
-    let isMounted = true;
-    let unsub = () => {};
-
-    const boot = async () => {
-      try {
-        console.log("Starting FitMemory initialization...");
-
-        // 1) Load messages first for fast UI
-        if (!isMounted) return;
-        const messagesRes = await fetch("/api/messages?limit=20", {
-          cache: "no-store",
-        });
-        if (!isMounted) return;
-
-        const messagesData = await messagesRes.json();
-        if (isMounted) {
-          setMessages(messagesData.messages || []);
-          setInitialLoading(false);
-          console.log("Messages loaded successfully");
-        }
-
-        // 2) Load stats separately to prevent race conditions
-        if (!isMounted) return;
-        try {
-          const statsRes = await fetch("/api/stats", { cache: "no-store" });
-          if (isMounted && statsRes.ok) {
-            const statsData = await statsRes.json();
-            setStats(statsData);
-            console.log("Stats loaded successfully");
-          }
-        } catch (e) {
-          console.warn("Stats load failed:", e);
-        }
-
-        // 3) Load remaining data
-        if (!isMounted) return;
-        try {
-          const [todaysWorkoutRes, timerRes] = await Promise.all([
-            fetch("/api/todaysWorkout", { cache: "no-store" }),
-            fetch("/api/timer-data", { cache: "no-store" }),
-          ]);
-
-          if (isMounted) {
-            if (todaysWorkoutRes.ok) {
-              const todaysData = await todaysWorkoutRes.json();
-              setTodaysWorkout(todaysData.workout);
-              console.log("Todays workout loaded");
-            }
-            if (timerRes.ok) {
-              const timerResData = await timerRes.json();
-              setTimerData(timerResData.sessions || []);
-              console.log("Timer data loaded");
-            }
-          }
-        } catch (e) {
-          console.warn("Secondary data load failed:", e);
-        }
-
-        // 4) Initialize realtime sync only once
-        if (!isMounted) return;
-        try {
-          await realTimeSync.initialize();
-          if (!isMounted) return;
-
-          unsub = realTimeSync.subscribe(
-            "stats",
-            (data) => {
-              if (isMounted) {
-                console.log("Received realtime stats update");
-                setStats((prev) => ({ ...prev, ...data }));
-              }
-            },
-            "Home"
-          );
-
-          // Only refresh if data is stale
-          const cachedStats = realTimeSync.getCachedData("stats");
-          if (!cachedStats || realTimeSync.isDataStale("stats")) {
-            realTimeSync.refreshData("stats", true);
-          }
-          console.log("RealTime sync initialized");
-        } catch (e) {
-          console.warn("RealTime sync failed:", e);
-        }
-
-        // 5) Lazy load notifications
-        if (isMounted) {
-          import("./services/notificationService")
-            .then((m) => {
-              if (isMounted) {
-                setNotificationService(m.default);
-                console.log("Notification service loaded");
-              }
-            })
-            .catch(() => {});
-        }
-
-        console.log("FitMemory initialization complete");
-      } catch (e) {
-        console.error("FitMemory initialization error:", e);
-        if (isMounted) {
-          setInitialLoading(false);
-          setMessages([
-            {
-              id: "error",
-              role: "system",
-              content:
-                "Welcome to FitMemory! I'm having trouble loading your data, but I'm ready to help with your fitness and sleep journey.",
-              createdAt: new Date().toISOString(),
-            },
-          ]);
-        }
-      }
-    };
-
-    boot();
-
-    // Cleanup function
-    return () => {
-      console.log("Cleaning up FitMemory page...");
-      isMounted = false;
-      try {
-        unsub();
-      } catch {}
-    };
-  }, []); // Empty dependency array - only run once
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const refreshStatsAndBroadcast = async () => {
-    try {
-      const res = await fetch("/api/stats", { cache: "no-store" });
-      const fresh = await res.json();
-      setStats(fresh);
-      realTimeSync.broadcastDataChange("stats", fresh, "page-refresh");
-    } catch (e) {
-      console.warn("Stats refresh failed:", e);
-    }
-  };
-
-  const sendMessage = async (messageText) => {
-    if (!messageText.trim() || loading) return;
-    const userMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: messageText,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((p) => [...p, userMessage]);
-    setInput("");
-    setLoading(true);
-
-    try {
-      const currentTime = {
-        iso: new Date().toISOString(),
-        timezone: "Asia/Kolkata",
-        epochMs: Date.now(),
-        display: new Date().toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        }),
-      };
-      const response = await fetch("/api/converse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageText, timestamp: currentTime }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to send message");
-
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.reply,
-        createdAt: new Date().toISOString(),
-        workoutLogged: data.workoutLogged,
-        sleepLogged: data.sleepLogged,
-        memoryStored: data.memoryStored,
-        workout: data.workout,
-        sleepSession: data.sleepSession,
-        streakUpdate: data.streakUpdate,
-      };
-      setMessages((p) => [...p, assistantMessage]);
-
-      // Toast confirmations
-      if (data.sleepLogged) {
-        if (data.sleepSession?.duration) {
-          showActionToast({
-            type: "sleep_updated",
-            durationMin: data.sleepSession.duration,
-          });
-        } else {
-          showActionToast({ type: "sleep_started" });
-        }
-      }
-      if (data.workoutLogged)
-        showActionToast({
-          type: "workout_logged",
-          exercises: data.workout?.exercises,
-        });
-      if (data.streakUpdate)
-        showActionToast({
-          type: "streak_incremented",
-          currentStreak: data.streakUpdate.currentStreak,
-        });
-      if (data.actions?.some((a) => a.action === "memory_add")) {
-        const m = data.actions.find((a) => a.action === "memory_add");
-        showActionToast({ type: "memory_add", memoryType: m?.type });
-      }
-
-      // Refresh minimal
-      if (data.workoutLogged || (data.sleepLogged && data.sleepSession)) {
-        await refreshStatsAndBroadcast();
-        if (data.workout && notificationService) {
-          notificationService.workoutCompleted({
-            totalDuration: data.workout.duration || 0,
-            exercises: data.workout.exercises || [],
-          });
-        }
-      }
-    } catch (error) {
-      setMessages((p) => [
-        ...p,
-        {
-          id: (Date.now() + 2).toString(),
-          role: "system",
-          content:
-            "Sorry, I'm having trouble responding right now. Please try again.",
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    sendMessage(input);
-  };
-  const insertQuickMessage = (message) => setInput(message);
+  const weeklyCounts = stats?.weeklyCounts || [];
+  const currentStreak = stats?.currentStreak || stats?.dailyStreak || 0;
+  const totalWorkouts = stats?.totalWorkouts || 0;
+  const lastSleep = sleep?.[0];
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
-      <SidebarProvider defaultOpen={true}>
-        {/* Left Sidebar */}
-        <FitnessSidebar
-          stats={stats}
-          onDataChange={refreshStatsAndBroadcast}
-          onShowAnalytics={() => setShowAnalytics(true)}
-        />
-        
-        {/* Main Content - Centered Chat Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto scrollbar-hide">
-            <div className="max-w-4xl mx-auto space-y-4 px-6 py-8">
-              <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  👋
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Left persistent sidebar comes from layout */}
+
+      {/* Center dashboard container */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="max-w-[1200px] mx-auto px-6 py-8 space-y-6">
+          {/* Hero */}
+          <Card className="border bg-gradient-to-br from-primary/5 via-background to-primary/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="text-xl">Good to see you</span>
                 </div>
-                <h2 className="text-xl font-semibold mb-2">
-                  Welcome to FitMemory!
-                </h2>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  I&apos;m your AI health coach. I can help you track
-                  workouts, monitor sleep, create plans, and stay motivated
-                  on your wellness journey.
-                </p>
-                <QuickShortcuts
-                  onSelectShortcut={insertQuickMessage}
-                  className="max-w-2xl mx-auto"
-                />
+                <Badge variant="secondary" className="gap-1">
+                  <Flame className="h-3 w-3 text-orange-500" /> {currentStreak} day streak
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" /> {totalWorkouts} total workouts
+                </div>
+                <Separator orientation="vertical" className="h-4 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                  <Moon className="h-4 w-4 text-blue-500" /> {lastSleep?.duration ? `${lastSleep.duration}h last sleep` : "sleep tracking ready"}
+                </div>
+                <Separator orientation="vertical" className="h-4 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" /> Weekly: {weeklyCounts.reduce((s, v) => s + (Number(v)||0), 0)} sessions
+                </div>
               </div>
-              {messages.map((message) => (
-                <ChatMessage
-                  key={message.id || message._id}
-                  message={message}
-                />
-              ))}
-              {loading && (
-                <div className="flex justify-start">
-                  <Card className="bg-card border">
-                    <CardContent className="flex items-center space-x-2 p-4">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" />
-                        <div
-                          className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.1s" }}
-                        />
-                        <div
-                          className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.2s" }}
-                        />
-                      </div>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        FitMemory is thinking...
-                      </span>
-                    </CardContent>
-                  </Card>
+            </CardContent>
+          </Card>
+
+          {/* Row: Quick Actions + Streak Badges */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><Target className="h-4 w-4" /> Quick actions</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <Button className="justify-start gap-2" variant="outline" onClick={() => router.push("/chat")}>💬 Chat with Coach</Button>
+                <Button className="justify-start gap-2" variant="outline" onClick={() => router.push("/workouts")}><Dumbbell className="h-4 w-4" /> Start Workout</Button>
+                <Button className="justify-start gap-2" variant="outline" onClick={() => router.push("/sleep")}><Moon className="h-4 w-4" /> Log Sleep</Button>
+                <Button className="justify-start gap-2" variant="outline" onClick={() => router.push("/analytics")}><BarChart3 className="h-4 w-4" /> Open Analytics</Button>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><Flame className="h-4 w-4 text-orange-500" /> Streaks</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="text-4xl font-extrabold leading-none">{currentStreak}</div>
+                  <div className="text-xs text-muted-foreground">days in a row</div>
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+                <Sparkline data={weeklyCounts} color="#f59e0b" />
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Chat Input - Centered */}
-          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
-            <div className="max-w-4xl mx-auto p-6">
-              {messages.length > 0 && (
-                <div className="mb-4">
-                  <QuickShortcuts onSelectShortcut={insertQuickMessage} />
+          {/* Row: Today + Sleep */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><Dumbbell className="h-4 w-4" /> Today’s workout</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {workouts?.length ? (
+                  <>
+                    <div className="text-sm text-muted-foreground">You have {workouts[0]?.exercises?.length || 0} exercises planned</div>
+                    <Button onClick={() => router.push("/workouts")} className="gap-2">Start now <ChevronRight className="h-4 w-4" /></Button>
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No plans yet. Create your first workout.</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><Moon className="h-4 w-4" /> Sleep summary</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="text-2xl font-bold">{lastSleep?.duration ? `${lastSleep.duration}h` : "—"}</div>
+                  <div className="text-xs text-muted-foreground">last session</div>
                 </div>
-              )}
-              <form onSubmit={handleSubmit}>
-                <Card className="border-2 border-border/50 focus-within:border-primary/50 focus-within:bg-card transition-all duration-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-end gap-3">
-                      <Textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask about fitness, sleep, recovery, or your health goals..."
-                        className="flex-1 min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-muted-foreground/70"
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSubmit(e);
-                          }
-                        }}
-                        onInput={(e) => {
-                          e.target.style.height = "auto";
-                          e.target.style.height =
-                            Math.min(e.target.scrollHeight, 120) + "px";
-                        }}
-                      />
-                      <Button
-                        type="submit"
-                        disabled={loading || !input.trim()}
-                        size="sm"
-                        className="shrink-0 rounded-xl px-3 h-10"
-                      >
-                        {loading ? (
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <PaperAirplaneIcon className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="text-xs text-muted-foreground">
-                        Press Enter to send, Shift+Enter for new line
+                <Sparkline data={sleep.slice(0,7).map(s => s.duration || 0).reverse()} color="#0ea5e9" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row: Activity Trend + Readiness */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Weekly activity</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Workouts & minutes</div>
+                  <Sparkline data={weeklyCounts} color="#22c55e" />
+                </div>
+                <div className="space-y-1 text-right">
+                  <div className="text-2xl font-bold">{weeklyCounts.reduce((s, v) => s + (Number(v)||0), 0)}</div>
+                  <div className="text-xs text-muted-foreground">sessions this week</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><HeartPulse className="h-4 w-4" /> Readiness</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {/* Naive readiness: a blend of sleep duration + recent activity */}
+                {(() => {
+                  const sleepH = lastSleep?.duration || 0;
+                  const recent = weeklyCounts.slice(-3).reduce((s, v) => s + (Number(v)||0), 0);
+                  const score = Math.max(10, Math.min(95, Math.round((sleepH*8 + (3-recent)*8) + 50)));
+                  return (
+                    <>
+                      <div className="text-3xl font-extrabold">{score}</div>
+                      <div className="text-xs text-muted-foreground">higher is better</div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: `${score}%` }} />
                       </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {input.length}/1000
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </form>
-            </div>
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row: Micro widgets */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Hydration</div><div className="flex items-center gap-2"><Droplet className="h-4 w-4 text-cyan-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Steps</div><div className="flex items-center gap-2"><Footprints className="h-4 w-4 text-emerald-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Resting HR</div><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Focus Timer</div><div className="flex items-center gap-2"><Timer className="h-4 w-4 text-violet-500" /><span className="font-semibold">{timerData?.length || 0}</span></div></CardContent></Card>
+          </div>
+
+          {/* Row: Recent lists */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Recent workouts</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {(workouts || []).slice(0,5).map((w, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <div className="truncate">{w.name || "Workout"}</div>
+                    <div className="text-muted-foreground">{Math.round((w.duration||0)/60)}m</div>
+                  </div>
+                ))}
+                {!workouts?.length && <div className="text-sm text-muted-foreground">No workouts yet</div>}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Recent sleep</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {(sleep || []).slice(0,5).map((s, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <div className="truncate">{new Date(s.createdAt || s.date || Date.now()).toLocaleDateString()}</div>
+                    <div className="text-muted-foreground">{s.duration || 0}h</div>
+                  </div>
+                ))}
+                {!sleep?.length && <div className="text-sm text-muted-foreground">No sleep data yet</div>}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row: Recommendations + CTA */}
+          <div className="grid grid-cols-1 gap-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Recommendations</CardTitle></CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {(() => {
+                  const recs = [];
+                  if (currentStreak < 3) recs.push("Build the habit: aim for 3 sessions this week");
+                  if ((sleep?.[0]?.duration || 0) < 7) recs.push("Try to hit 7-9 hours sleep to improve recovery");
+                  if (weeklyCounts.reduce((s, v) => s + (Number(v)||0),0) < 3) recs.push("Add a light cardio day to boost consistency");
+                  if (!recs.length) recs.push("Looking great—review analytics for deeper insights");
+                  return recs.map((r, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{r}</Badge>
+                  ));
+                })()}
+              </CardContent>
+            </Card>
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-muted-foreground">Explore trends and performance</div>
+                  <div className="font-semibold">Open full Analytics</div>
+                </div>
+                <Button onClick={() => router.push("/analytics")} variant="outline" className="gap-2"><BarChart3 className="h-4 w-4" /> Open</Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
+      </div>
 
-        {/* Right Sidebar - Fixed to Right */}
-        <div className="w-80 flex-shrink-0">
-          <TomorrowSidebar />
-        </div>
-
-        {showAnalytics && (
-          <AnalyticsDashboard
-            onClose={() => setShowAnalytics(false)}
-            workoutData={stats?.recentWorkouts || []}
-            streakData={stats?.streakHistory || []}
-            timerData={timerData}
-          />
-        )}
-      </SidebarProvider>
+      {/* Right pinned sidebar (TomorrowSidebar is already wired in main chat; keep visual parity if needed) */}
+      <div className="w-80 flex-shrink-0 hidden xl:block" />
     </div>
   );
 }
