@@ -164,31 +164,6 @@ export default function FitnessSidebar({ stats, onDataChange }) {
     timeZone: "Asia/Kolkata",
   });
 
-  if (loading) {
-    return (
-      <Sidebar
-        side="left"
-        className="border-r border-neutral-900/10 dark:border-neutral-900"
-        collapsible="icon"
-      >
-        <SidebarHeader className="border-b border-neutral-900/10 dark:border-neutral-900">
-          <div className="flex items-center justify-between px-2 py-1">
-            <div className="text-sm font-medium">Loading...</div>
-            <SidebarTrigger className="h-8 w-8" />
-          </div>
-        </SidebarHeader>
-        <SidebarContent className="p-4 space-y-4">
-          <SkeletonCard />
-          <SkeletonTimer />
-          <div className="grid grid-cols-2 gap-3">
-            <SkeletonStat />
-            <SkeletonStat />
-          </div>
-        </SidebarContent>
-      </Sidebar>
-    );
-  }
-
   return (
     <Sidebar
       side="left"
@@ -204,7 +179,7 @@ export default function FitnessSidebar({ stats, onDataChange }) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-4 space-y-4 overflow-y-auto scrollbar-hide">
+      <SidebarContent className="p-2 space-y-4 overflow-y-auto scrollbar-hide">
         <SidebarGroup>
           <SidebarGroupContent>
             {!isCollapsed ? (
