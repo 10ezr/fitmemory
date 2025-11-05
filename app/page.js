@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Flame, Activity, BarChart3, Moon, Timer, TrendingUp, Dumbbell,
   Sparkles, Target, Droplet, Footprints, HeartPulse, ChevronRight,
-  MessageCircle, Calendar, Clock, Trophy, Zap, Send
+  MessageCircle, Calendar, Clock, Trophy, Zap, Send, CheckCircle2
 } from "lucide-react";
 import realTimeSync from "@/app/services/realTimeSync";
 
@@ -30,56 +30,6 @@ function Sparkline({ data = [], color = "#7c3aed" }) {
   );
 }
 
-// Right-rail components embedded (not a sidebar)
-function RightRail({ stats, sleep, workouts }) {
-  const weekly = stats?.weeklyCounts || [];
-  const lastSleep = sleep?.[0];
-  const upcoming = (workouts || []).slice(0, 2);
-  return (
-    <div className="grid gap-4">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Reminders</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex items-center justify-between"><span>Hydrate</span><Badge variant="secondary">250ml</Badge></div>
-          <div className="flex items-center justify-between"><span>Stand up</span><Badge variant="secondary">2 min</Badge></div>
-          <div className="flex items-center justify-between"><span>Wind-down</span><Badge variant="secondary">10:30 PM</Badge></div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Upcoming</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {upcoming.length ? upcoming.map((w, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <span className="truncate">{w.name || "Workout"}</span>
-              <Badge variant="outline">{Math.round((w.estimatedDuration || 0) / 60)}m</Badge>
-            </div>
-          )) : <div className="text-muted-foreground">No items</div>}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Sleep glance</CardTitle></CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <div>
-            <div className="text-xl font-bold">{lastSleep?.duration ? `${lastSleep.duration}h` : "—"}</div>
-            <div className="text-[11px] text-muted-foreground">last night</div>
-          </div>
-          <Sparkline data={sleep.slice(0,7).map(s => s.duration || 0).reverse()} color="#0ea5e9" />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Weekly pulse</CardTitle></CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <div>
-            <div className="text-xl font-bold">{weekly.reduce((s,v)=>s+(Number(v)||0),0)}</div>
-            <div className="text-[11px] text-muted-foreground">sessions</div>
-          </div>
-          <Sparkline data={weekly} color="#22c55e" />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // Tiny progress ring (SVG only)
 function ProgressRing({ progress = 0, size = 92, strokeWidth = 8, color = "#7c3aed" }) {
   const r = (size - strokeWidth) / 2;
@@ -90,6 +40,111 @@ function ProgressRing({ progress = 0, size = 92, strokeWidth = 8, color = "#7c3a
       <circle cx={size/2} cy={size/2} r={r} stroke="currentColor" strokeWidth={strokeWidth} fill="none" className="text-muted opacity-25" />
       <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth={strokeWidth} fill="none" strokeDasharray={C} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" />
     </svg>
+  );
+}
+
+// Right-rail components embedded (not a sidebar)
+function RightRail({ stats, sleep, workouts }) {
+  const weekly = stats?.weeklyCounts || [];
+  const lastSleep = sleep?.[0];
+  const upcoming = (workouts || []).slice(0, 2);
+  const nextResetMs = (() => {
+    const last = Number(stats?.lastSuccessAt || 0);
+    if (!last) return 0;
+    const target = last + 24*60*60*1000;
+    return Math.max(0, target - Date.now());
+  })();
+  const hrs = Math.floor(nextResetMs/3600000);
+  const mins = Math.floor((nextResetMs%3600000)/60000);
+
+  return (
+    <div className="grid gap-4">
+      {/* Coach Nudge */}
+      <Card className="bg-gradient-to-br from-primary/5 via-background to-primary/10 border-primary/10 hover:shadow-md transition-all">
+        <CardContent className="p-4 text-sm flex items-center gap-3">
+          <Zap className="h-4 w-4 text-yellow-500" />
+          <div className="flex-1 min-w-0">
+            <div className="font-medium truncate">Coach nudge</div>
+            <div className="text-xs text-muted-foreground truncate">
+              {(weekly.reduce((s,v)=>s+(Number(v)||0),0) < 3) ? "Add a light cardio day to build consistency" : (lastSleep?.duration < 7 ? "Aim for 7-9h sleep to boost recovery" : "Great work—review analytics for deeper insights")}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reminders */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Reminders</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex items-center justify-between"><span>Hydrate</span><Badge variant="secondary">250ml</Badge></div>
+          <div className="flex items-center justify-between"><span>Stand up</span><Badge variant="secondary">2 min</Badge></div>
+          <div className="flex items-center justify-between"><span>Wind-down</span><Badge variant="secondary">10:30 PM</Badge></div>
+        </CardContent>
+      </Card>
+
+      {/* Upcoming */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Upcoming</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {upcoming.length ? upcoming.map((w, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <span className="truncate">{w.name || "Workout"}</span>
+              <Badge variant="outline">{Math.round((w.estimatedDuration || 0) / 60)}m</Badge>
+            </div>
+          )) : <div className="text-muted-foreground">No items</div>}
+        </CardContent>
+      </Card>
+
+      {/* Sleep glance */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Sleep glance</CardTitle></CardHeader>
+        <CardContent className="flex items-center justify-between">
+          <div>
+            <div className="text-xl font-bold">{lastSleep?.duration ? `${lastSleep.duration}h` : "—"}</div>
+            <div className="text-[11px] text-muted-foreground">last night</div>
+          </div>
+          <Sparkline data={sleep.slice(0,7).map(s => s.duration || 0).reverse()} color="#0ea5e9" />
+        </CardContent>
+      </Card>
+
+      {/* Weekly pulse + Next reset */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Weekly pulse</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xl font-bold">{weekly.reduce((s,v)=>s+(Number(v)||0),0)}</div>
+              <div className="text-[11px] text-muted-foreground">sessions</div>
+            </div>
+            <Sparkline data={weekly} color="#22c55e" />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
+            <span>Next reset</span>
+            <span>{hrs}h {mins}m</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Streak milestones */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Streak milestones</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {[3,7,14,30].map((m)=> (
+            <Badge key={m} variant="secondary" className="gap-1 text-xs">
+              <Trophy className="h-3 w-3 text-yellow-500" /> {m}d
+            </Badge>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Notes scratchpad (local only) */}
+      <Card className="hover:shadow-sm transition-all">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Notes</CardTitle></CardHeader>
+        <CardContent>
+          <textarea className="w-full h-24 text-sm rounded-md border bg-muted/30 p-2 outline-none" placeholder="Warm-up ideas, cues, reminders..." />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -149,6 +204,7 @@ export default function DashboardHome() {
   const [sleep, setSleep] = useState([]);
   const [timerData, setTimerData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [macro, setMacro] = useState({ protein: false, water: false, steps: false });
 
   useEffect(() => {
     let mounted = true;
@@ -189,19 +245,24 @@ export default function DashboardHome() {
     .reduce((s,w)=> s + Math.round((w.duration||0)/60), 0);
   const workoutProgress = Math.min(100, (todayMins/60) * 100);
 
+  // Quick timer handlers (noop-safe)
+  const startTimer = async (label, minutes) => {
+    try { await fetch("/api/timer-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label, minutes }) }); } catch {}
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-b from-background to-background/60">
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         <div className="max-w-[1200px] mx-auto px-6 py-8">
           {/* Hero */}
-          <Card className="border bg-gradient-to-br from-primary/5 via-background to-primary/10">
+          <Card className="border bg-gradient-to-br from-primary/5 via-background to-primary/10 hover:shadow-lg transition-all">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                   <span className="text-xl">Welcome back</span>
                 </div>
-                <Badge variant="secondary" className="gap-1">
+                <Badge variant="secondary" className="gap-1 animate-in fade-in slide-in-from-top-2">
                   <Flame className="h-3 w-3 text-orange-500" /> {streak} day streak
                 </Badge>
               </CardTitle>
@@ -217,25 +278,59 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
 
-          {/* Actions + This week */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Target className="h-4 w-4" /> Quick actions</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <Button variant="outline" className="justify-start gap-2" onClick={()=>router.push("/chat")}><MessageCircle className="h-4 w-4" /> Quick Chat</Button>
-                <Button variant="outline" className="justify-start gap-2" onClick={()=>router.push("/workouts")}><Dumbbell className="h-4 w-4" /> Start Workout</Button>
-                <Button variant="outline" className="justify-start gap-2" onClick={()=>router.push("/sleep")}><Moon className="h-4 w-4" /> Log Sleep</Button>
-                <Button variant="outline" className="justify-start gap-2" onClick={()=>router.push("/analytics")}><BarChart3 className="h-4 w-4" /> Analytics</Button>
+          {/* Goals & Insights */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <Card className="hover:shadow-md transition-all hover:-translate-y-0.5">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground">Weekly goal</div>
+                  <div className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">{weekly.reduce((s,v)=>s+(Number(v)||0),0)}/4</div>
+                </div>
+                <ProgressRing progress={Math.min(100, weekly.reduce((s,v)=>s+(Number(v)||0),0)/4*100)} color="#7c3aed" />
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">This week</CardTitle></CardHeader>
-              <CardContent className="flex items-center justify-between">
+            <Card className="hover:shadow-md transition-all hover:-translate-y-0.5">
+              <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <div className="text-3xl font-extrabold">{weekly.reduce((s,v)=>s+(Number(v)||0),0)}</div>
-                  <div className="text-xs text-muted-foreground">sessions</div>
+                  <div className="text-xs text-muted-foreground">Consistency</div>
+                  <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">{Math.min(100, Math.round((weekly.filter(v=>Number(v)>0).length/7)*100))}%</div>
                 </div>
                 <Sparkline data={weekly} color="#22c55e" />
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-all hover:-translate-y-0.5">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground">Energy</div>
+                  <div className="text-2xl font-bold">{lastSleep?.duration ? (lastSleep.duration>=7?"High":"Medium") : "—"}</div>
+                </div>
+                <HeartPulse className="h-6 w-6 text-rose-500" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick timers & Macro checklist */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+            <Card className="lg:col-span-2 hover:shadow-md transition-all">
+              <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Target className="h-4 w-4" /> Quick timers</CardTitle></CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {[{label:"10m Focus",m:10},{label:"20m HIIT",m:20},{label:"30m Walk",m:30}].map(t => (
+                  <Button key={t.label} variant="outline" className="gap-2" onClick={()=>startTimer(t.label,t.m)}>
+                    <Timer className="h-4 w-4" /> {t.label}
+                  </Button>
+                ))}
+                <Button variant="ghost" className="ml-auto" onClick={()=>router.push("/timer")}>Open timer</Button>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-all">
+              <CardHeader className="pb-2"><CardTitle className="text-base">Macros checklist</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2 text-sm">
+                {[{k:"protein",label:"Protein target"},{k:"water",label:"Water 2L"},{k:"steps",label:"8k steps"}].map(({k,label})=> (
+                  <button key={k} onClick={()=>setMacro(m=>({...m,[k]:!m[k]}))} className="flex items-center justify-between rounded-md border px-3 py-2 hover:bg-muted/40">
+                    <span>{label}</span>
+                    {macro[k] ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <span className="text-muted-foreground">Mark</span>}
+                  </button>
+                ))}
               </CardContent>
             </Card>
           </div>
@@ -243,14 +338,14 @@ export default function DashboardHome() {
           {/* Today + Sleep + Right rail */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
             <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
+              <Card className="hover:shadow-md transition-all">
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Dumbbell className="h-4 w-4" /> Today’s workout</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {(workouts||[]).length ? (
                     <>
                       <div className="text-sm text-muted-foreground">{workouts[0]?.exercises?.length || 0} exercises planned</div>
                       <div className="flex items-center gap-4">
-                        <div className="relative">
+                        <div className="relative drop-shadow-[0_0_10px_rgba(124,58,237,.15)]">
                           <ProgressRing progress={workoutProgress} color="#7c3aed" />
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="text-center">
@@ -265,7 +360,7 @@ export default function DashboardHome() {
                   ) : <div className="text-sm text-muted-foreground">No plans yet. Create your first workout.</div>}
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="hover:shadow-md transition-all">
                 <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Moon className="h-4 w-4" /> Sleep summary</CardTitle></CardHeader>
                 <CardContent className="flex items-center justify-between">
                   <div className="space-y-1">
@@ -281,14 +376,14 @@ export default function DashboardHome() {
 
           {/* Trend + Readiness */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 hover:shadow-md transition-all">
               <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Weekly activity</CardTitle></CardHeader>
               <CardContent className="flex items-center justify-between">
                 <div className="space-y-1"><div className="text-sm text-muted-foreground">Workouts trend</div><Sparkline data={weekly} color="#22c55e" /></div>
                 <div className="text-right"><div className="text-2xl font-bold">{weekly.reduce((s,v)=>s+(Number(v)||0),0)}</div><div className="text-xs text-muted-foreground">sessions</div></div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-md transition-all">
               <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><HeartPulse className="h-4 w-4" /> Readiness</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {(() => {
@@ -307,15 +402,15 @@ export default function DashboardHome() {
 
           {/* Micro widgets */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Hydration</div><div className="flex items-center gap-2"><Droplet className="h-4 w-4 text-cyan-500" /><span className="font-semibold">—</span></div></CardContent></Card>
-            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Steps</div><div className="flex items-center gap-2"><Footprints className="h-4 w-4 text-emerald-500" /><span className="font-semibold">—</span></div></CardContent></Card>
-            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Resting HR</div><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-500" /><span className="font-semibold">—</span></div></CardContent></Card>
-            <Card><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Focus Timer</div><div className="flex items-center gap-2"><Timer className="h-4 w-4 text-violet-500" /><span className="font-semibold">{timerData?.length || 0}</span></div></CardContent></Card>
+            <Card className="hover:shadow-sm transition-all"><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Hydration</div><div className="flex items-center gap-2"><Droplet className="h-4 w-4 text-cyan-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card className="hover:shadow-sm transition-all"><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Steps</div><div className="flex items-center gap-2"><Footprints className="h-4 w-4 text-emerald-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card className="hover:shadow-sm transition-all"><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Resting HR</div><div className="flex items-center gap-2"><HeartPulse className="h-4 w-4 text-rose-500" /><span className="font-semibold">—</span></div></CardContent></Card>
+            <Card className="hover:shadow-sm transition-all"><CardContent className="p-4 flex items-center justify-between"><div className="text-xs text-muted-foreground">Focus Timer</div><div className="flex items-center gap-2"><Timer className="h-4 w-4 text-violet-500" /><span className="font-semibold">{timerData?.length || 0}</span></div></CardContent></Card>
           </div>
 
           {/* Recommendations + Quick Chat Card */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
-            <Card className="xl:col-span-2">
+            <Card className="xl:col-span-2 hover:shadow-md transition-all">
               <CardHeader className="pb-2"><CardTitle className="text-base">Recommendations</CardTitle></CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {(() => {
@@ -328,7 +423,7 @@ export default function DashboardHome() {
                 })()}
               </CardContent>
             </Card>
-            <Card className="h-[280px]">
+            <Card className="h-[280px] hover:shadow-md transition-all">
               <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><MessageCircle className="h-4 w-4" /> Quick Chat</CardTitle></CardHeader>
               <CardContent className="h-[220px]"><QuickChat /></CardContent>
             </Card>
