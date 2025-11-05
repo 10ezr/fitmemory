@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Flame, Clock, Calendar, Home, LogOut } from "lucide-react";
+import {
+  Flame,
+  Clock,
+  Calendar,
+  Home,
+  LogOut,
+  Activity,
+  BarChart3,
+  User,
+  Settings,
+  Database,
+  ShieldCheck,
+  Moon,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import realTimeSync from "@/app/services/realTimeSync";
 import SleepDashboard from "@/components/SleepDashboard";
 import {
@@ -345,6 +359,13 @@ export default function FitnessSidebar({ stats, onDataChange }) {
                   <AvatarImage src="/icon-192x192.png" alt="User" />
                   <AvatarFallback>FM</AvatarFallback>
                 </Avatar>
+                {!isCollapsed && (
+                  <div className="flex-1 text-left min-w-0">
+                    <Badge className="text-sm font-medium truncate">
+                      {auth.user?.id || "User"}
+                    </Badge>
+                  </div>
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64">
@@ -363,27 +384,81 @@ export default function FitnessSidebar({ stats, onDataChange }) {
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-2">
+
+                {/* Main Navigation Links */}
+                <div className="space-y-1">
                   <Button
                     variant="outline"
-                    className="justify-start gap-2"
+                    className="w-full justify-start gap-2"
                     onClick={() => location.assign("/")}
                   >
-                    <Home className="h-4 w-4" /> Home
+                    <Home className="h-4 w-4" /> Chat
                   </Button>
                   <Button
-                    variant="destructive"
-                    className="justify-start gap-2"
-                    onClick={async () => {
-                      try {
-                        await fetch("/api/auth/login", { method: "DELETE" });
-                      } catch {}
-                      location.assign("/login");
-                    }}
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/workouts")}
                   >
-                    <LogOut className="h-4 w-4" /> Logout
+                    <Activity className="h-4 w-4" /> Workouts
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/analytics")}
+                  >
+                    <BarChart3 className="h-4 w-4" /> Analytics
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/profile")}
+                  >
+                    <User className="h-4 w-4" /> Profile
                   </Button>
                 </div>
+
+                <Separator />
+
+                {/* Secondary Navigation Links */}
+                <div className="space-y-1">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/settings")}
+                  >
+                    <Settings className="h-4 w-4" /> Settings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/data")}
+                  >
+                    <Database className="h-4 w-4" /> Data
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => location.assign("/admin")}
+                  >
+                    <ShieldCheck className="h-4 w-4" /> Admin
+                  </Button>
+                </div>
+
+                <Separator />
+
+                {/* Logout Button */}
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start gap-2"
+                  onClick={async () => {
+                    try {
+                      await fetch("/api/auth/login", { method: "DELETE" });
+                    } catch {}
+                    location.assign("/login");
+                  }}
+                >
+                  <LogOut className="h-4 w-4" /> Logout
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
