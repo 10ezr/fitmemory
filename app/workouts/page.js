@@ -12,7 +12,6 @@ import {
   Play, Pause, RotateCcw, Plus,
   Dumbbell, Timer, Calendar
 } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
 import WorkoutTimer from "@/components/WorkoutTimer";
 
 const WorkoutCard = ({ workout, onStart }) => (
@@ -161,172 +160,165 @@ export default function WorkoutsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto p-6">
-          <div className="space-y-6">
-            <div className="h-8 bg-muted rounded-lg animate-pulse" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-48 bg-muted rounded-lg animate-pulse" />
-              ))}
-            </div>
-          </div>
+      <div className="space-y-6">
+        <div className="h-8 bg-muted rounded-lg animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-48 bg-muted rounded-lg animate-pulse" />
+          ))}
         </div>
-        <BottomNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Workouts
-              </h1>
-              <p className="text-muted-foreground">
-                Start a workout or browse your training history
-              </p>
-            </div>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Create Workout
-            </Button>
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Workouts
+            </h1>
+            <p className="text-muted-foreground">
+              Start a workout or browse your training history
+            </p>
           </div>
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create Workout
+          </Button>
+        </div>
+        
+        {/* Search */}
+        <div className="flex items-center gap-4">
+          <Input
+            placeholder="Search workouts..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-md"
+          />
+        </div>
+      </motion.div>
+
+      {/* Quick Stats */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Activity className="h-6 w-6 text-primary" />
+              </div>
+              <p className="text-2xl font-bold">{recentWorkouts.length}</p>
+              <p className="text-xs text-muted-foreground">Total Workouts</p>
+            </CardContent>
+          </Card>
           
-          {/* Search */}
-          <div className="flex items-center gap-4">
-            <Input
-              placeholder="Search workouts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-md"
-            />
-          </div>
-        </motion.div>
-
-        {/* Quick Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <Activity className="h-6 w-6 text-primary" />
-                </div>
-                <p className="text-2xl font-bold">{recentWorkouts.length}</p>
-                <p className="text-xs text-muted-foreground">Total Workouts</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <TrendingUp className="h-6 w-6 text-orange-500" />
-                </div>
-                <p className="text-2xl font-bold">{stats.currentStreak || 0}</p>
-                <p className="text-xs text-muted-foreground">Current Streak</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <Clock className="h-6 w-6 text-blue-500" />
-                </div>
-                <p className="text-2xl font-bold">
-                  {Math.round(recentWorkouts.reduce((sum, w) => sum + (w.duration || 0), 0) / 3600)}h
-                </p>
-                <p className="text-xs text-muted-foreground">Total Hours</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <Target className="h-6 w-6 text-green-500" />
-                </div>
-                <p className="text-2xl font-bold">
-                  {recentWorkouts.reduce((sum, w) => sum + (w.exercises?.length || 0), 0)}
-                </p>
-                <p className="text-xs text-muted-foreground">Total Exercises</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <Tabs defaultValue="plans" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 h-12">
-            <TabsTrigger value="plans" className="flex items-center gap-2">
-              <Dumbbell className="h-4 w-4" />
-              Workout Plans
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Recent History
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Workout Plans */}
-          <TabsContent value="plans" className="space-y-6">
-            {filteredWorkouts.length === 0 ? (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <Dumbbell className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No workout plans found</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {searchTerm ? "Try adjusting your search terms" : "Create your first workout plan to get started"}
-                  </p>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Workout Plan
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredWorkouts.map((workout, index) => (
-                  <WorkoutCard
-                    key={workout._id || workout.id || index}
-                    workout={workout}
-                    onStart={startWorkout}
-                  />
-                ))}
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <TrendingUp className="h-6 w-6 text-orange-500" />
               </div>
-            )}
-          </TabsContent>
-
-          {/* Recent History */}
-          <TabsContent value="history" className="space-y-6">
-            {recentWorkouts.length === 0 ? (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No workout history</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Complete your first workout to see it here
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentWorkouts.map((workout, index) => (
-                  <RecentWorkoutCard
-                    key={workout._id || workout.id || index}
-                    workout={workout}
-                  />
-                ))}
+              <p className="text-2xl font-bold">{stats.currentStreak || 0}</p>
+              <p className="text-xs text-muted-foreground">Current Streak</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="h-6 w-6 text-blue-500" />
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
+              <p className="text-2xl font-bold">
+                {Math.round(recentWorkouts.reduce((sum, w) => sum + (w.duration || 0), 0) / 3600)}h
+              </p>
+              <p className="text-xs text-muted-foreground">Total Hours</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Target className="h-6 w-6 text-green-500" />
+              </div>
+              <p className="text-2xl font-bold">
+                {recentWorkouts.reduce((sum, w) => sum + (w.exercises?.length || 0), 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">Total Exercises</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Tabs defaultValue="plans" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 h-12">
+          <TabsTrigger value="plans" className="flex items-center gap-2">
+            <Dumbbell className="h-4 w-4" />
+            Workout Plans
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Recent History
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Workout Plans */}
+        <TabsContent value="plans" className="space-y-6">
+          {filteredWorkouts.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Dumbbell className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No workout plans found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchTerm ? "Try adjusting your search terms" : "Create your first workout plan to get started"}
+                </p>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Workout Plan
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredWorkouts.map((workout, index) => (
+                <WorkoutCard
+                  key={workout._id || workout.id || index}
+                  workout={workout}
+                  onStart={startWorkout}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Recent History */}
+        <TabsContent value="history" className="space-y-6">
+          {recentWorkouts.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No workout history</h3>
+                <p className="text-muted-foreground mb-4">
+                  Complete your first workout to see it here
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentWorkouts.map((workout, index) => (
+                <RecentWorkoutCard
+                  key={workout._id || workout.id || index}
+                  workout={workout}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
       
       {/* Workout Timer Modal */}
       {showTimer && activeWorkout && (
@@ -344,8 +336,6 @@ export default function WorkoutsPage() {
           isActive={showTimer}
         />
       )}
-      
-      <BottomNav />
     </div>
   );
 }
