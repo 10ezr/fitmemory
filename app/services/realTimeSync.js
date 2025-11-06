@@ -1,7 +1,9 @@
 /**
- * Real-time data synchronization service
- * Now supports sleep and health readiness data streams
+ * Real-time data synchronization service - Fixed version
+ * Fixes memory leaks, improves error handling, and adds proper cleanup
  */
+
+import { SYNC_CONFIG } from "@/lib/constants/appConfig";
 
 class RealTimeSyncService {
   constructor() {
@@ -9,36 +11,34 @@ class RealTimeSyncService {
     this.cache = new Map();
     this.lastUpdate = new Map();
     this.isInitialized = false;
-    this.initPromise = null; // FIX: Prevent multiple concurrent initializations
+    this.initPromise = null;
+    
+    // Track intervals and listeners for cleanup
+    this.intervals = new Set();
+    this.eventListeners = new Map();
+    this.abortController = new AbortController();
   }
 
-  // Initialize the sync service
   async initialize() {
-    // FIX: Prevent duplicate initialization
     if (this.isInitialized) {
       console.log("RealTimeSync already initialized, skipping...");
       return;
     }
 
-    // FIX: If initialization is in progress, wait for it
     if (this.initPromise) {
       console.log("RealTimeSync initialization in progress, waiting...");
       return await this.initPromise;
     }
 
-    // FIX: Create initialization promise to prevent concurrent calls
     this.initPromise = this._performInitialization();
     return await this.initPromise;
   }
 
   async _performInitialization() {
     try {
-      console.log("Initializing RealTimeSync service with sleep support...");
+      console.log("Initializing RealTimeSync service with enhanced error handling...");
 
-      // Set up periodic data refresh
       this.startPeriodicSync();
-
-      // Set up event listeners for data changes
       this.setupEventListeners();
 
       this.isInitialized = true;
@@ -52,7 +52,6 @@ class RealTimeSyncService {
     }
   }
 
-  // Subscribe to data changes
   subscribe(dataType, callback, component = "unknown") {
     if (!this.subscribers.has(dataType)) {
       this.subscribers.set(dataType, new Set());
@@ -63,7 +62,6 @@ class RealTimeSyncService {
 
     console.log(`Component ${component} subscribed to ${dataType}`);
 
-    // Return unsubscribe function
     return () => {
       const subscribers = this.subscribers.get(dataType);
       if (subscribers) {
@@ -76,7 +74,6 @@ class RealTimeSyncService {
     };
   }
 
-  // Notify all subscribers of data changes
   notify(dataType, data, source = "unknown") {
     console.log(`Notifying ${dataType} change from ${source}`);
 
@@ -91,26 +88,20 @@ class RealTimeSyncService {
       });
     }
 
-    // Update cache
     this.cache.set(dataType, data);
     this.lastUpdate.set(dataType, Date.now());
   }
 
-  // Get cached data
   getCachedData(dataType) {
     return this.cache.get(dataType);
   }
 
-  // Check if data is stale
-  isDataStale(dataType, maxAge = 30000) {
-    // 30 seconds default
+  isDataStale(dataType, maxAge = SYNC_CONFIG.DATA_STALE_THRESHOLD) {
     const lastUpdate = this.lastUpdate.get(dataType);
     if (!lastUpdate) return true;
-
     return Date.now() - lastUpdate > maxAge;
   }
 
-  // Force refresh of specific data type
   async refreshData(dataType, force = false) {
     if (!force && !this.isDataStale(dataType)) {
       return this.getCachedData(dataType);
@@ -118,28 +109,29 @@ class RealTimeSyncService {
 
     try {
       let data;
+      const signal = this.abortController.signal;
 
       switch (dataType) {
         case "stats":
-          data = await this.fetchStats();
+          data = await this.fetchWithTimeout('/api/stats', signal);
           break;
         case "streak":
-          data = await this.fetchStreak();
+          data = await this.fetchWithTimeout('/api/streak-status', signal);
           break;
         case "workouts":
-          data = await this.fetchRecentWorkouts();
+          data = await this.fetchWithTimeout('/api/workouts?limit=10', signal);
           break;
         case "messages":
-          data = await this.fetchRecentMessages();
+          data = await this.fetchWithTimeout('/api/messages?limit=20', signal);
           break;
         case "analytics":
-          data = await this.fetchAnalytics();
+          data = await this.fetchWithTimeout('/api/analytics', signal);
           break;
         case "sleep":
-          data = await this.fetchSleepData();
+          data = await this.fetchWithTimeout('/api/sleep?days=7', signal);
           break;
         case "readiness":
-          data = await this.fetchReadiness();
+          data = await this.fetchWithTimeout('/api/readiness', signal);
           break;
         default:
           console.warn(`Unknown data type: ${dataType}`);
@@ -149,223 +141,183 @@ class RealTimeSyncService {
       this.notify(dataType, data, "refresh");
       return data;
     } catch (error) {
-      console.error(`Error refreshing ${dataType}:`, error);
+      if (error.name === 'AbortError') {
+        console.log(`Request for ${dataType} was aborted`);
+      } else {
+        console.error(`Error refreshing ${dataType}:`, error);
+      }
       return null;
     }
   }
 
-  // Fetch methods for different data types
-  async fetchStats() {
-    const response = await fetch("/api/stats");
-    if (!response.ok) throw new Error("Failed to fetch stats");
-    return await response.json();
+  async fetchWithTimeout(url, signal, timeout = 10000) {
+    const timeoutId = setTimeout(() => {
+      if (!signal.aborted) {
+        this.abortController.abort();
+      }
+    }, timeout);
+
+    try {
+      const response = await fetch(url, { signal });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   }
 
-  async fetchStreak() {
-    const response = await fetch("/api/streak-status");
-    if (!response.ok) throw new Error("Failed to fetch streak");
-    return await response.json();
-  }
-
-  async fetchRecentWorkouts() {
-    const response = await fetch("/api/workouts?limit=10");
-    if (!response.ok) throw new Error("Failed to fetch workouts");
-    return await response.json();
-  }
-
-  async fetchRecentMessages() {
-    const response = await fetch("/api/messages?limit=20");
-    if (!response.ok) throw new Error("Failed to fetch messages");
-    return await response.json();
-  }
-
-  async fetchAnalytics() {
-    const response = await fetch("/api/analytics");
-    if (!response.ok) throw new Error("Failed to fetch analytics");
-    return await response.json();
-  }
-
-  // NEW: Sleep data fetching
-  async fetchSleepData() {
-    const response = await fetch("/api/sleep?days=7");
-    if (!response.ok) throw new Error("Failed to fetch sleep data");
-    return await response.json();
-  }
-
-  // NEW: Health readiness fetching
-  async fetchReadiness() {
-    const response = await fetch("/api/readiness");
-    if (!response.ok) throw new Error("Failed to fetch readiness");
-    return await response.json();
-  }
-
-  // Set up periodic synchronization
   startPeriodicSync() {
-    // FIX: Clear any existing intervals before creating new ones
-    if (this.syncInterval) clearInterval(this.syncInterval);
-    if (this.streakInterval) clearInterval(this.streakInterval);
-    if (this.sleepInterval) clearInterval(this.sleepInterval);
+    this.clearAllIntervals();
 
-    // Sync every 30 seconds
-    this.syncInterval = setInterval(async () => {
+    // Main sync interval
+    const syncInterval = setInterval(async () => {
+      if (this.abortController.signal.aborted) return;
       await this.syncAllData();
-    }, 30000);
+    }, SYNC_CONFIG.SYNC_INTERVAL);
+    this.intervals.add(syncInterval);
 
-    // Check streak status every 5 minutes
-    this.streakInterval = setInterval(async () => {
+    // Streak check interval
+    const streakInterval = setInterval(async () => {
+      if (this.abortController.signal.aborted) return;
       await this.checkStreakStatus();
-    }, 300000);
+    }, SYNC_CONFIG.STREAK_CHECK_INTERVAL);
+    this.intervals.add(streakInterval);
 
-    // NEW: Check sleep readiness every 10 minutes
-    this.sleepInterval = setInterval(async () => {
+    // Sleep readiness interval
+    const sleepInterval = setInterval(async () => {
+      if (this.abortController.signal.aborted) return;
       await this.checkSleepReadiness();
-    }, 600000);
+    }, SYNC_CONFIG.SLEEP_CHECK_INTERVAL);
+    this.intervals.add(sleepInterval);
 
     console.log("Periodic sync intervals started");
   }
 
-  // Sync all data types
+  clearAllIntervals() {
+    this.intervals.forEach(intervalId => {
+      clearInterval(intervalId);
+    });
+    this.intervals.clear();
+  }
+
   async syncAllData() {
     const dataTypes = ["stats", "streak", "workouts", "messages", "sleep", "readiness"];
 
     for (const dataType of dataTypes) {
+      if (this.abortController.signal.aborted) break;
       if (this.isDataStale(dataType)) {
         await this.refreshData(dataType);
       }
     }
   }
 
-  // Check streak status and notify if needed
   async checkStreakStatus() {
     try {
-      const streak = await this.fetchStreak();
+      const streak = await this.fetchWithTimeout('/api/streak-status', this.abortController.signal);
       if (streak) {
         this.notify("streak", streak, "periodic-check");
       }
     } catch (error) {
-      console.error("Error checking streak status:", error);
+      if (error.name !== 'AbortError') {
+        console.error("Error checking streak status:", error);
+      }
     }
   }
 
-  // NEW: Check sleep readiness and notify
   async checkSleepReadiness() {
     try {
-      const readiness = await this.fetchReadiness();
+      const readiness = await this.fetchWithTimeout('/api/readiness', this.abortController.signal);
       if (readiness) {
         this.notify("readiness", readiness, "periodic-check");
         
-        // Also refresh sleep data
-        const sleepData = await this.fetchSleepData();
+        const sleepData = await this.fetchWithTimeout('/api/sleep?days=7', this.abortController.signal);
         if (sleepData) {
           this.notify("sleep", sleepData, "periodic-check");
         }
       }
     } catch (error) {
-      console.error("Error checking sleep readiness:", error);
+      if (error.name !== 'AbortError') {
+        console.error("Error checking sleep readiness:", error);
+      }
     }
   }
 
-  // Set up event listeners for real-time updates
   setupEventListeners() {
-    // FIX: Remove existing listeners before adding new ones
-    if (this.dataChangedHandler) {
-      window.removeEventListener("dataChanged", this.dataChangedHandler);
-    }
-    if (this.workoutCompletedHandler) {
-      window.removeEventListener("workoutCompleted", this.workoutCompletedHandler);
-    }
-    if (this.streakChangedHandler) {
-      window.removeEventListener("streakChanged", this.streakChangedHandler);
-    }
-    if (this.sleepLoggedHandler) {
-      window.removeEventListener("sleepLogged", this.sleepLoggedHandler);
-    }
+    this.removeAllEventListeners();
 
-    // Listen for custom events from components
-    this.dataChangedHandler = (event) => {
-      const { dataType, data, source } = event.detail;
-      this.notify(dataType, data, source);
-    };
-    window.addEventListener("dataChanged", this.dataChangedHandler);
+    const events = [
+      { name: "dataChanged", handler: this.handleDataChanged.bind(this) },
+      { name: "workoutCompleted", handler: this.handleWorkoutCompleted.bind(this) },
+      { name: "streakChanged", handler: this.handleStreakChanged.bind(this) },
+      { name: "sleepLogged", handler: this.handleSleepLogged.bind(this) }
+    ];
 
-    // Listen for workout completion
-    this.workoutCompletedHandler = (event) => {
-      this.handleWorkoutCompletion(event.detail);
-    };
-    window.addEventListener("workoutCompleted", this.workoutCompletedHandler);
+    events.forEach(({ name, handler }) => {
+      window.addEventListener(name, handler, { signal: this.abortController.signal });
+      this.eventListeners.set(name, handler);
+    });
 
-    // Listen for streak changes
-    this.streakChangedHandler = (event) => {
-      this.handleStreakChange(event.detail);
-    };
-    window.addEventListener("streakChanged", this.streakChangedHandler);
-
-    // NEW: Listen for sleep logging
-    this.sleepLoggedHandler = (event) => {
-      this.handleSleepLogged(event.detail);
-    };
-    window.addEventListener("sleepLogged", this.sleepLoggedHandler);
-
-    console.log("Event listeners set up");
+    console.log("Event listeners set up with proper cleanup");
   }
 
-  // Handle workout completion
-  async handleWorkoutCompletion(workoutData) {
-    console.log("Workout completed, refreshing data...");
+  removeAllEventListeners() {
+    this.eventListeners.forEach((handler, eventName) => {
+      window.removeEventListener(eventName, handler);
+    });
+    this.eventListeners.clear();
+  }
 
-    // Refresh all related data including readiness
+  handleDataChanged(event) {
+    const { dataType, data, source } = event.detail;
+    this.notify(dataType, data, source);
+  }
+
+  async handleWorkoutCompleted(event) {
+    console.log("Workout completed, refreshing data...");
     await Promise.all([
       this.refreshData("stats", true),
       this.refreshData("streak", true),
       this.refreshData("workouts", true),
       this.refreshData("analytics", true),
-      this.refreshData("readiness", true), // Workout affects readiness
+      this.refreshData("readiness", true)
     ]);
-
-    // Notify all components
-    this.notify("workoutCompleted", workoutData, "workout-completion");
+    this.notify("workoutCompleted", event.detail, "workout-completion");
   }
 
-  // Handle streak changes
-  async handleStreakChange(streakData) {
+  async handleStreakChanged(event) {
     console.log("Streak changed, refreshing data...");
-
-    // Refresh streak-related data
     await Promise.all([
       this.refreshData("stats", true),
       this.refreshData("streak", true),
-      this.refreshData("analytics", true),
+      this.refreshData("analytics", true)
     ]);
-
-    // Notify all components
-    this.notify("streakChanged", streakData, "streak-change");
+    this.notify("streakChanged", event.detail, "streak-change");
   }
 
-  // NEW: Handle sleep logging
-  async handleSleepLogged(sleepData) {
+  async handleSleepLogged(event) {
     console.log("Sleep logged, refreshing health data...");
-
-    // Refresh all sleep and health-related data
     await Promise.all([
       this.refreshData("sleep", true),
       this.refreshData("readiness", true),
-      this.refreshData("stats", true), // Sleep affects overall stats
+      this.refreshData("stats", true)
     ]);
-
-    // Notify all components
-    this.notify("sleepLogged", sleepData, "sleep-logging");
+    this.notify("sleepLogged", event.detail, "sleep-logging");
   }
 
-  // Broadcast data change to all components
   broadcastDataChange(dataType, data, source) {
     window.dispatchEvent(
       new CustomEvent("dataChanged", {
-        detail: { dataType, data, source },
+        detail: { dataType, data, source }
       })
     );
   }
 
-  // NEW: Trigger sleep data refresh (for external use)
   async refreshSleepData() {
     await Promise.all([
       this.refreshData("sleep", true),
@@ -373,52 +325,47 @@ class RealTimeSyncService {
     ]);
   }
 
-  // Get comprehensive app state including sleep
   async getAppState() {
-    const [stats, streak, workouts, messages, analytics, sleep, readiness] = await Promise.all([
-      this.fetchStats(),
-      this.fetchStreak(),
-      this.fetchRecentWorkouts(),
-      this.fetchRecentMessages(),
-      this.fetchAnalytics(),
-      this.fetchSleepData(),
-      this.fetchReadiness(),
-    ]);
+    const promises = [
+      this.fetchWithTimeout('/api/stats', this.abortController.signal),
+      this.fetchWithTimeout('/api/streak-status', this.abortController.signal),
+      this.fetchWithTimeout('/api/workouts?limit=10', this.abortController.signal),
+      this.fetchWithTimeout('/api/messages?limit=20', this.abortController.signal),
+      this.fetchWithTimeout('/api/analytics', this.abortController.signal),
+      this.fetchWithTimeout('/api/sleep?days=7', this.abortController.signal),
+      this.fetchWithTimeout('/api/readiness', this.abortController.signal)
+    ];
 
-    return {
-      stats,
-      streak,
-      workouts,
-      messages,
-      analytics,
-      sleep,
-      readiness,
-      lastSync: Date.now(),
-    };
+    try {
+      const [stats, streak, workouts, messages, analytics, sleep, readiness] = await Promise.allSettled(promises);
+      
+      return {
+        stats: stats.status === 'fulfilled' ? stats.value : null,
+        streak: streak.status === 'fulfilled' ? streak.value : null,
+        workouts: workouts.status === 'fulfilled' ? workouts.value : null,
+        messages: messages.status === 'fulfilled' ? messages.value : null,
+        analytics: analytics.status === 'fulfilled' ? analytics.value : null,
+        sleep: sleep.status === 'fulfilled' ? sleep.value : null,
+        readiness: readiness.status === 'fulfilled' ? readiness.value : null,
+        lastSync: Date.now()
+      };
+    } catch (error) {
+      console.error("Error getting app state:", error);
+      return { lastSync: Date.now() };
+    }
   }
 
-  // FIX: Enhanced cleanup method
   destroy() {
     console.log("Destroying RealTimeSync service...");
     
+    // Abort all ongoing requests
+    this.abortController.abort();
+    
     // Clear intervals
-    if (this.syncInterval) clearInterval(this.syncInterval);
-    if (this.streakInterval) clearInterval(this.streakInterval);
-    if (this.sleepInterval) clearInterval(this.sleepInterval);
+    this.clearAllIntervals();
     
     // Remove event listeners
-    if (this.dataChangedHandler) {
-      window.removeEventListener("dataChanged", this.dataChangedHandler);
-    }
-    if (this.workoutCompletedHandler) {
-      window.removeEventListener("workoutCompleted", this.workoutCompletedHandler);
-    }
-    if (this.streakChangedHandler) {
-      window.removeEventListener("streakChanged", this.streakChangedHandler);
-    }
-    if (this.sleepLoggedHandler) {
-      window.removeEventListener("sleepLogged", this.sleepLoggedHandler);
-    }
+    this.removeAllEventListeners();
     
     // Clear data structures
     this.subscribers.clear();
@@ -429,7 +376,10 @@ class RealTimeSyncService {
     this.isInitialized = false;
     this.initPromise = null;
     
-    console.log("RealTimeSync service destroyed");
+    // Create new abort controller for potential reinitialization
+    this.abortController = new AbortController();
+    
+    console.log("RealTimeSync service destroyed and cleaned up");
   }
 }
 
