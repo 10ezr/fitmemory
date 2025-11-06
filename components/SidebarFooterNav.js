@@ -33,7 +33,6 @@ export default function SidebarFooterNav({ isCollapsed = false }) {
   if (isCollapsed) {
     return (
       <div className="space-y-1">
-        {/* Main navigation items in collapsed mode */}
         <Item href="/" label="Chat" icon={Home} />
         <Item href="/workouts" label="Workouts" icon={Activity} />
         <Item href="/analytics" label="Analytics" icon={BarChart3} />
@@ -46,7 +45,6 @@ export default function SidebarFooterNav({ isCollapsed = false }) {
 
   return (
     <div className="space-y-2">
-      {/* Main navigation items */}
       <div className="space-y-1">
         <Item href="/" label="Chat" icon={Home} />
         <Item href="/workouts" label="Workouts" icon={Activity} />
@@ -56,7 +54,6 @@ export default function SidebarFooterNav({ isCollapsed = false }) {
       
       <Separator className="my-2" />
       
-      {/* Secondary navigation items */}
       <div className="space-y-1">
         <Item href="/settings" label="Settings" icon={Settings} />
         <Item href="/data" label="Data" icon={Database} />
@@ -65,7 +62,6 @@ export default function SidebarFooterNav({ isCollapsed = false }) {
       
       <Separator className="my-3" />
       
-      {/* App info footer */}
       <div className="px-2 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
