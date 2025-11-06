@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SidebarFooterNav } from "@/components/SidebarFooterNav";
+import SidebarFooterNav from "@/components/SidebarFooterNav";
 import { cn } from "@/lib/utils";
 
-// Unified navigation sidebar; merges FitnessSidebar and LeftSidebar
 export default function Sidebar({ className = "" }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -15,12 +14,6 @@ export default function Sidebar({ className = "" }) {
     { href: "/analytics", label: "Analytics" },
     { href: "/sleep", label: "Sleep" },
     { href: "/profile", label: "Profile" },
-  ];
-
-  const adminItems = [
-    { href: "/settings", label: "Settings" },
-    { href: "/admin/backup", label: "Backup & Export" },
-    { href: "/admin/logs", label: "Logs" },
   ];
 
   return (
@@ -37,7 +30,7 @@ export default function Sidebar({ className = "" }) {
         ))}
       </nav>
       <div className="mt-auto">
-        <SidebarFooterNav items={adminItems} />
+        <SidebarFooterNav isCollapsed={collapsed} />
       </div>
     </aside>
   );
